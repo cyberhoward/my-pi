@@ -33,7 +33,7 @@ Every toggle updates three files in the project's `.pi/` directory (creating the
 | `.pi/settings.json` | Pi's settings file — gets one include entry per **enabled** component |
 | `{cwd}/AGENTS.md` | Assembled tool documentation for the agent (inside `<!-- toggle-managed-start/end -->` markers) |
 
-Entries in `.pi/settings.json` that point into `~/.my-pi/` are considered managed by this extension and rewritten on every toggle. Any other entries (user-authored includes, excludes of unrelated paths) are preserved verbatim.
+Entries in `.pi/settings.json` that point into `~/.my-pi/` are considered managed by this extension and rewritten on every toggle. Any other entries (user-authored includes, excludes of unrelated paths) are preserved verbatim. Preserved project-local agent includes (for example `.pi/agents/my-agent.md`) are also documented in the generated `AGENTS.md` block so the visible agent list matches what Pi loads.
 
 ### Include paths by component type
 

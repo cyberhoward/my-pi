@@ -1,6 +1,6 @@
 import { readFile, writeFile, mkdir, stat } from "fs/promises";
 import { homedir } from "os";
-import { join, dirname } from "path";
+import { join, dirname, resolve } from "path";
 import type { ComponentItem } from "./discovery.ts";
 import type { ToggleConfig } from "./config.ts";
 import { isDisabled } from "./config.ts";
@@ -9,7 +9,10 @@ import { isDisabled } from "./config.ts";
 // Constants
 // ============================================================================
 
-const MY_PI_DIR = join(homedir(), ".my-pi");
+const HOME_DIR = homedir();
+const MY_PI_DIR = join(HOME_DIR, ".my-pi");
+const HOME_MARKER = "~/.my-pi/";
+const ABS_MARKER = MY_PI_DIR + "/";
 const MANAGED_START = "<!-- toggle-managed-start -->";
 const MANAGED_END = "<!-- toggle-managed-end -->";
 
@@ -84,23 +87,27 @@ function prettyModel(model: string | undefined): string | null {
   return `${family} ${m[2]}.${m[3]}`;
 }
 
-async function loadAgentMeta(item: ComponentItem): Promise<AgentMeta | null> {
-  // Agents live as `<category>/agents/<name>.md`; `relativePath` is the stem
-  // (no .md extension), per discovery.ts.
-  const agentPath = join(MY_PI_DIR, `${item.relativePath}.md`);
+async function loadAgentMetaFromPath(agentPath: string, fallbackName: string): Promise<AgentMeta | null> {
   try {
     const content = await readFile(agentPath, "utf-8");
     const match = content.match(/^---\n([\s\S]*?)\n---/);
-    if (!match) return { name: item.name };
+    if (!match) return { name: fallbackName };
     const fm = match[1];
+    const name = fm.match(/^name:\s*(.+)$/m)?.[1]?.trim().replace(/^["']|["']$/g, "") ?? fallbackName;
     const description = fm
       .match(/^description:\s*["']?(.*?)["']?\s*$/m)?.[1]
       ?.trim();
     const model = fm.match(/^model:\s*(.+)$/m)?.[1]?.trim();
-    return { name: item.name, description, model };
+    return { name, description, model };
   } catch {
     return null;
   }
+}
+
+async function loadAgentMeta(item: ComponentItem): Promise<AgentMeta | null> {
+  // Agents live as `<category>/agents/<name>.md`; `relativePath` is the stem
+  // (no .md extension), per discovery.ts.
+  return loadAgentMetaFromPath(join(MY_PI_DIR, `${item.relativePath}.md`), item.name);
 }
 
 function renderAgentLine(meta: AgentMeta): string {
@@ -125,11 +132,54 @@ async function buildSection(
   return snippets.length > 0 ? snippets.join("\n\n") : null;
 }
 
-async function buildAgentsSection(items: ComponentItem[]): Promise<string | null> {
-  if (items.length === 0) return null;
+async function buildAgentsSection(items: ComponentItem[], extraMetas: AgentMeta[] = []): Promise<string | null> {
+  if (items.length === 0 && extraMetas.length === 0) return null;
   const metas = await Promise.all(items.map(loadAgentMeta));
-  const lines = metas.filter((m): m is AgentMeta => m !== null).map(renderAgentLine);
+  const lines = [...metas.filter((m): m is AgentMeta => m !== null), ...extraMetas].map(renderAgentLine);
   return lines.length > 0 ? lines.join("\n") : null;
+}
+
+function isManagedSettingsEntry(entry: string): boolean {
+  const stripped = entry.replace(/^[-!+]\s*/, "").trim();
+  return (
+    stripped === "~/.my-pi" ||
+    stripped === MY_PI_DIR ||
+    stripped.startsWith(HOME_MARKER) ||
+    stripped.startsWith(ABS_MARKER)
+  );
+}
+
+function resolveUserAuthoredAgentPath(entry: string, cwd: string): string | null {
+  const trimmed = entry.trim();
+  if (!trimmed || trimmed.startsWith("-") || trimmed.startsWith("!")) return null;
+  if (isManagedSettingsEntry(trimmed)) return null;
+
+  const stripped = trimmed.replace(/^\+\s*/, "").trim();
+  if (stripped.startsWith("~/")) return join(HOME_DIR, stripped.slice(2));
+  return resolve(cwd, stripped);
+}
+
+async function loadUserAuthoredAgentMetas(cwd: string | undefined): Promise<AgentMeta[]> {
+  if (!cwd) return [];
+
+  let settings: Record<string, unknown>;
+  try {
+    settings = JSON.parse(await readFile(join(cwd, ".pi", "settings.json"), "utf-8"));
+  } catch {
+    return [];
+  }
+
+  const entries = Array.isArray(settings.agents) ? settings.agents.filter((e): e is string => typeof e === "string") : [];
+  const metas = await Promise.all(
+    entries.map(async (entry) => {
+      const agentPath = resolveUserAuthoredAgentPath(entry, cwd);
+      if (!agentPath) return null;
+      const fallbackName = agentPath.split("/").pop()?.replace(/\.md$/, "") || "agent";
+      return loadAgentMetaFromPath(agentPath, fallbackName);
+    }),
+  );
+
+  return metas.filter((m): m is AgentMeta => m !== null);
 }
 
 /**
@@ -138,7 +188,8 @@ async function buildAgentsSection(items: ComponentItem[]): Promise<string | null
  */
 export async function buildManagedBlock(
   config: ToggleConfig,
-  allItems: ComponentItem[]
+  allItems: ComponentItem[],
+  cwd?: string,
 ): Promise<string> {
   const enabled = allItems.filter((i) => !isDisabled(config, i.relativePath));
 
@@ -154,7 +205,8 @@ export async function buildManagedBlock(
   const extBlock = await buildSection(extensions);
   if (extBlock) sections.push(`## Extensions\n\n${extBlock}`);
 
-  const agentBlock = await buildAgentsSection(agents);
+  const userAuthoredAgentMetas = await loadUserAuthoredAgentMetas(cwd);
+  const agentBlock = await buildAgentsSection(agents, userAuthoredAgentMetas);
   if (agentBlock) sections.push(`## Agents\n\n${agentBlock}`);
 
   const skillBlock = await buildSection(skills);
@@ -192,7 +244,7 @@ export async function assembleProjectAgentsMd(
     // File doesn't exist yet — that's fine, we'll create it if we have a block.
   }
 
-  const managedBlock = await buildManagedBlock(config, allItems);
+  const managedBlock = await buildManagedBlock(config, allItems, cwd);
 
   // Strip any existing managed block (idempotent).
   const stripped = existing.replace(MANAGED_BLOCK_RE, "\n").replace(/\n+$/, "");
