@@ -41,13 +41,11 @@ export default function toggleExtension(pi: ExtensionAPI) {
       // Initial sync: materialize the current project config into settings.json
       // and AGENTS.md so opening `/toggle` always brings these files in line
       // with the saved toggle-config.json, even without any user toggles.
-      {
-        const initialConfig = await loadConfig("project", cwd);
-        await applyToggleConfig(initialConfig, allItems, "project", cwd);
-        await assembleProjectAgentsMd(initialConfig, allItems, cwd);
-      }
+      const initialConfig = await loadConfig("project", cwd);
+      const settingsChanged = await applyToggleConfig(initialConfig, allItems, "project", cwd);
+      const agentsMdChanged = await assembleProjectAgentsMd(initialConfig, allItems, cwd);
 
-      let changed = false;
+      let changed = settingsChanged || agentsMdChanged;
       let running = true;
 
       while (running) {

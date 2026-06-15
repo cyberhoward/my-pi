@@ -234,7 +234,7 @@ export async function assembleProjectAgentsMd(
   config: ToggleConfig,
   allItems: ComponentItem[],
   cwd: string
-): Promise<void> {
+): Promise<boolean> {
   const targetPath = join(cwd, "AGENTS.md");
 
   let existing = "";
@@ -259,8 +259,10 @@ export async function assembleProjectAgentsMd(
   }
 
   // If both existing and managed are empty, avoid creating a useless file.
-  if (!existing && !managedBlock) return;
+  if (!existing && !managedBlock) return false;
+  if (existing === newContent) return false;
 
   await mkdir(dirname(targetPath), { recursive: true });
   await writeFile(targetPath, newContent, "utf-8");
+  return true;
 }

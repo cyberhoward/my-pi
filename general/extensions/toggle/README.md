@@ -62,4 +62,4 @@ If a component has no snippet, it still loads (it just doesn't contribute to AGE
 
 ## How changes apply
 
-Changes are written to disk immediately on every toggle. When you close the dashboard, pi calls `ctx.reload()` to pick up the new settings without restarting.
+Changes are written to disk immediately on every toggle. Opening `/toggle` also performs an initial sync of `.pi/settings.json` and `AGENTS.md`; if that sync changes either file, closing the dashboard calls `ctx.reload()` even if no checkbox was toggled. This lets newly documented or preserved project-local components become visible without manually running `/reload`.

@@ -81,18 +81,20 @@ export async function applyToggleConfig(
   allItems: ComponentItem[],
   scope: "global" | "project",
   cwd?: string,
-): Promise<void> {
+): Promise<boolean> {
   if (scope !== "project" || !cwd) {
     // Global scope is a no-op in the new model — always-on tools live in
     // the hand-maintained global settings.json.
-    return;
+    return false;
   }
 
   const settingsPath = join(cwd, ".pi", "settings.json");
 
+  let existingRaw = "";
   let settings: Record<string, unknown>;
   try {
-    settings = JSON.parse(await readFile(settingsPath, "utf-8"));
+    existingRaw = await readFile(settingsPath, "utf-8");
+    settings = JSON.parse(existingRaw);
   } catch {
     settings = {};
   }
@@ -130,6 +132,10 @@ export async function applyToggleConfig(
     }
   }
 
+  const newContent = JSON.stringify(settings, null, 2) + "\n";
+  if (existingRaw === newContent) return false;
+
   await mkdir(dirname(settingsPath), { recursive: true });
-  await writeFile(settingsPath, JSON.stringify(settings, null, 2) + "\n", "utf-8");
+  await writeFile(settingsPath, newContent, "utf-8");
+  return true;
 }
