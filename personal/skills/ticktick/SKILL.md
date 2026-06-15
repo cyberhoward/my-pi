@@ -62,10 +62,7 @@ Group proposals by target project for readability.
 ### Step 5: Apply
 On approval, update each task via `ticktick` with `action: "update_task"` with the agreed tags and priority.
 
-**Important:** The `tickrs` CLI cannot move tasks between projects. After applying tags/priority, list all tasks that need to be moved manually:
-
-"**Manual moves needed** (do these in the TickTick app):"
-- "[task title]" → [target project name]
+**Important:** Use `move_task` to move tasks between projects when the user approves. This is implemented as create-in-target-project + delete-original, so the task ID changes and comments/history may not be preserved.
 
 ### Step 6: Handle ambiguous tasks
 Walk through flagged tasks one at a time. Present options, get user input, then apply.
@@ -107,6 +104,6 @@ Use TickTick's built-in priority flags:
 
 ## Limitations
 
-- **Cannot move tasks between projects** via the CLI. Flag these for manual move in the TickTick app and list them clearly at the end.
+- **Move caveat:** `move_task` recreates the task in the target project and deletes the original; this changes the task ID and may not preserve comments/history/metadata that `tickrs` does not expose.
 - **Cannot list tags globally** — the tag taxonomy lives in the Config project's Tags note.
 - **Cannot create subtasks independently** — use the `items` parameter when creating/updating tasks.

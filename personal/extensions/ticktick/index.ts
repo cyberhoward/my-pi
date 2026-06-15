@@ -25,11 +25,13 @@ const TickTickParams = Type.Object({
 		"complete_task",
 		"uncomplete_task",
 		"delete_task",
+		"move_task",
 		"create_project",
 		"load_config",
 	] as const),
-	project: Type.Optional(Type.String({ description: "Project name (required for task operations unless a default is set)" })),
-	task_id: Type.Optional(Type.String({ description: "Task ID (for get/update/complete/delete)" })),
+	project: Type.Optional(Type.String({ description: "Project name (required for task operations unless a default is set). For move_task, this is the source project." })),
+	target_project: Type.Optional(Type.String({ description: "Target project name for move_task" })),
+	task_id: Type.Optional(Type.String({ description: "Task ID (for get/update/complete/delete/move)" })),
 	title: Type.Optional(Type.String({ description: "Task or project title (for create/update)" })),
 	content: Type.Optional(Type.String({ description: "Task description (for create/update)" })),
 	priority: Type.Optional(StringEnum(["none", "low", "medium", "high"] as const)),
@@ -131,6 +133,40 @@ function summarizeProject(p: any): any {
 	return { id: p.id, name: p.name, ...(p.color ? { color: p.color } : {}) };
 }
 
+function unwrapTask(raw: any): any {
+	return raw?.data?.task ?? raw?.data ?? raw;
+}
+
+function priorityToCli(priority: any): string | undefined {
+	switch (priority) {
+		case 1:
+			return "low";
+		case 3:
+			return "medium";
+		case 5:
+			return "high";
+		case 0:
+			return "none";
+		default:
+			return undefined;
+	}
+}
+
+function taskToCreateArgs(task: any, targetProject: string): string[] {
+	const args = ["task", "create", "--title", task.title, "--project-name", targetProject];
+	if (task.content) args.push("--content", task.content);
+	const priority = priorityToCli(task.priority);
+	if (priority) args.push("--priority", priority);
+	if (task.startDate) args.push("--start", task.startDate);
+	if (task.dueDate) args.push("--due", task.dueDate);
+	if (task.isAllDay) args.push("--all-day");
+	if (task.timeZone) args.push("--timezone", task.timeZone);
+	if (task.tags?.length) args.push("--tags", task.tags.join(","));
+	if (task.items?.length) args.push("--items", task.items.map((i: any) => i.title).filter(Boolean).join(","));
+	args.push("--json");
+	return args;
+}
+
 function formatResult(action: string, raw: any): string {
 	if (!raw?.success && raw?.error) {
 		return `Error: ${raw.error.message || JSON.stringify(raw.error)}`;
@@ -158,6 +194,8 @@ function formatResult(action: string, raw: any): string {
 			return `Task marked incomplete.`;
 		case "delete_task":
 			return `Task deleted.`;
+		case "move_task":
+			return JSON.stringify(data, null, 2);
 		case "create_project":
 			return JSON.stringify(summarizeProject(data), null, 2);
 		case "load_config": {
@@ -181,48 +219,73 @@ export default function (pi: ExtensionAPI) {
 		label: "TickTick",
 		description:
 			"Manage the user's personal TickTick tasks and projects. " +
-			"Actions: list_projects, list_tasks, get_task, create_task, update_task, complete_task, uncomplete_task, delete_task, create_project, load_config. " +
+			"Actions: list_projects, list_tasks, get_task, create_task, update_task, complete_task, uncomplete_task, delete_task, move_task, create_project, load_config. " +
 			"Supports natural language dates (e.g. 'tomorrow', 'next friday'). " +
 			"Priority levels: none, low, medium, high. " +
 			"Use load_config to fetch the Config project (tag taxonomy, project guide, review checklist, priorities, processing rules).",
-		promptSnippet: "Manage TickTick tasks and projects (list, create, update, complete, delete, load_config)",
+		promptSnippet: "Manage TickTick tasks and projects (list, create, update, complete, delete, move, load_config)",
 		promptGuidelines: [
 			"Use this tool for the user's personal task management — NOT for agentic/coding task tracking.",
 			"Always provide the `project` parameter for task operations unless the user has set a default project.",
+			"For move_task, provide `project` as the source project and `target_project` as the destination; this recreates the task then deletes the original, so the task ID changes.",
 			"If authentication fails, tell the user to run `tickrs init` in their terminal and refer them to ~/.my-pi/extensions/ticktick/setup.md.",
 		],
 		parameters: TickTickParams,
 
 		async execute(_toolCallId, params, signal, _onUpdate, _ctx) {
-			const args = buildArgs(params);
+			const runTickrs = async (args: string[]) => {
+				const result = await pi.exec("tickrs", args, { signal, timeout: 15000 });
 
-			const result = await pi.exec("tickrs", args, { signal, timeout: 15000 });
-
-			if (result.killed) {
-				throw new Error("tickrs command timed out");
-			}
-
-			const output = (result.stdout + result.stderr).trim();
-
-			if (result.code !== 0) {
-				// Check for common errors
-				if (output.includes("Authentication required") || output.includes("AUTH_REQUIRED")) {
-					throw new Error("TickTick authentication required. Run `tickrs init` in your terminal. See ~/.my-pi/extensions/ticktick/setup.md for setup instructions.");
+				if (result.killed) {
+					throw new Error("tickrs command timed out");
 				}
-				throw new Error(output || `tickrs exited with code ${result.code}`);
-			}
 
-			// Try to parse JSON and format a slim response
+				const output = (result.stdout + result.stderr).trim();
+
+				if (result.code !== 0) {
+					if (output.includes("Authentication required") || output.includes("AUTH_REQUIRED")) {
+						throw new Error("TickTick authentication required. Run `tickrs init` in your terminal. See ~/.my-pi/extensions/ticktick/setup.md for setup instructions.");
+					}
+					throw new Error(output || `tickrs exited with code ${result.code}`);
+				}
+
+				try {
+					return JSON.parse(output);
+				} catch {
+					return output;
+				}
+			};
+
 			let text: string;
-			try {
-				const parsed = JSON.parse(output);
-				text = formatResult(params.action, parsed);
-			} catch {
-				// If not JSON, return raw output
-				text = output;
+			if (params.action === "move_task") {
+				if (!params.task_id) throw new Error("move_task requires task_id");
+				if (!params.project) throw new Error("move_task requires project (source project name)");
+				if (!params.target_project) throw new Error("move_task requires target_project");
+
+				const sourceProject = params.project;
+				const targetProject = params.target_project;
+				const taskId = params.task_id;
+
+				const rawTask = await runTickrs(["task", "show", taskId, "--project-name", sourceProject, "--json"]);
+				const originalTask = unwrapTask(rawTask);
+				const rawCreated = await runTickrs(taskToCreateArgs(originalTask, targetProject));
+				const newTask = unwrapTask(rawCreated);
+				await runTickrs(["task", "delete", taskId, "--project-name", sourceProject, "--force", "--json"]);
+
+				text = formatResult("move_task", {
+					data: {
+						message: "Task moved by recreating it in the target project and deleting the original.",
+						sourceProject,
+						targetProject,
+						originalTask: summarizeTask(originalTask),
+						newTask: summarizeTask(newTask),
+					},
+				});
+			} else {
+				const parsed = await runTickrs(buildArgs(params));
+				text = typeof parsed === "string" ? parsed : formatResult(params.action, parsed);
 			}
 
-			// Truncate if the formatted result is still too large
 			const truncation = truncateHead(text, {
 				maxLines: DEFAULT_MAX_LINES,
 				maxBytes: DEFAULT_MAX_BYTES,
@@ -246,6 +309,7 @@ export default function (pi: ExtensionAPI) {
 			if (args.action === "load_config") text += " " + theme.fg("accent", "[Config]");
 			if (args.title) text += " " + theme.fg("dim", `"${args.title}"`);
 			if (args.project) text += " " + theme.fg("accent", `[${args.project}]`);
+			if (args.target_project) text += " " + theme.fg("accent", `→ [${args.target_project}]`);
 			if (args.task_id) text += " " + theme.fg("accent", `#${args.task_id.slice(0, 8)}`);
 			if (args.date) text += " " + theme.fg("warning", `📅 ${args.date}`);
 			if (args.priority && args.priority !== "none") text += " " + theme.fg("error", `!${args.priority}`);
