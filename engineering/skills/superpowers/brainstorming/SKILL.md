@@ -1,23 +1,38 @@
 ---
 name: brainstorming
-description: "You MUST use this before any creative work - creating features, building components, adding functionality, or modifying behavior. Explores user intent, requirements and design before implementation."
+description: Use when work involves unresolved architectural or product decisions, broad multi-step scope, ambiguous requirements, or multiple viable approaches with meaningful trade-offs
 ---
 
 # Brainstorming Ideas Into Designs
 
 ## Overview
 
-Help turn ideas into fully formed designs and specs through natural collaborative dialogue.
+Help turn consequential, under-specified ideas into fully formed designs and specs through natural collaborative dialogue.
 
-Start by understanding the current project context, then ask questions one at a time to refine the idea. Once you understand what you're building, present the design and get user approval.
+Use judgment before invoking this skill. Brainstorming is valuable when implementation would otherwise commit to important choices the user has not made; it is process overhead when the outcome and approach are already clear.
+
+## When to Use
+
+Use brainstorming when one or more of these apply:
+
+- Architecture, system boundaries, data models, APIs, or cross-service interactions need to be decided
+- A large multi-step feature has unresolved scope or requirements
+- Several viable approaches have meaningful product or technical trade-offs
+- The user asks to explore, ideate, design, or compare approaches
+- The requested behavior is unclear enough that implementation risks substantial rework
+
+Skip brainstorming for:
+
+- Exact, localized edits with a prescribed outcome
+- Mechanical maintenance such as typo fixes, renames, formatting, dependency bumps, or straightforward configuration changes
+- Bug fixes where expected behavior is already established; use systematic debugging and TDD instead
+- Implementing an approved design, detailed specification, or existing plan
+
+Ask: **Would starting implementation now silently choose a consequential direction that has not been agreed?** If yes, brainstorm. If no, proceed with the relevant implementation workflow.
 
 <HARD-GATE>
-Do NOT invoke any implementation skill, write any code, scaffold any project, or take any implementation action until you have presented a design and the user has approved it. This applies to EVERY project regardless of perceived simplicity.
+Once this skill is invoked for qualifying work, do NOT invoke an implementation skill, write code, scaffold a project, or take implementation action until you have presented a design and the user has approved it.
 </HARD-GATE>
-
-## Anti-Pattern: "This Is Too Simple To Need A Design"
-
-Every project goes through this process. A todo list, a single-function utility, a config change — all of them. "Simple" projects are where unexamined assumptions cause the most wasted work. The design can be short (a few sentences for truly simple projects), but you MUST present it and get approval.
 
 ## Checklist
 
@@ -88,6 +103,8 @@ digraph brainstorming {
 
 ## Key Principles
 
+- **Use judgment at the trigger** - Do not invoke this skill merely because any behavior changes
+- **Scale process to consequence** - Reserve full design work for decisions with meaningful scope, ambiguity, or trade-offs
 - **One question at a time** - Don't overwhelm with multiple questions
 - **Multiple choice preferred** - Easier to answer than open-ended when possible
 - **YAGNI ruthlessly** - Remove unnecessary features from all designs
