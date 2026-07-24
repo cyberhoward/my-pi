@@ -1,6 +1,6 @@
 ---
 name: test-driven-development
-description: Use when implementing any feature or bugfix, before writing implementation code
+description: Use when implementing non-trivial product behavior, fixing regressions, or refactoring behavior where automated tests provide durable value
 ---
 
 # Test-Driven Development (TDD)
@@ -15,28 +15,31 @@ Write the test first. Watch it fail. Write minimal code to pass.
 
 ## When to Use
 
-**Always:**
-- New features
-- Bug fixes
-- Refactoring
-- Behavior changes
+**Use TDD for:**
+- Non-trivial product or business behavior
+- Bug fixes where a regression test can reproduce the failure
+- Refactoring behavior protected by an existing or valuable new test
+- Logic with meaningful edge cases, state transitions, security impact, or API contracts
 
-**Exceptions (ask your human partner):**
-- Throwaway prototypes
-- Generated code
-- Configuration files
+**Implement directly, then run proportionate verification, for:**
+- Documentation, copy, comments, and formatting
+- Small, low-risk declarative configuration changes
+- Mechanical command wiring, version pins, paths, and dependency metadata
+- Generated code and throwaway prototypes
 
-Thinking "skip TDD just this once"? Stop. That's rationalization.
+Do not scout for a test surface or add a repository test solely to satisfy TDD for an exempt mechanical edit. If the change expands into behavior, has meaningful regression risk, or cannot be conclusively verified directly, switch to TDD.
 
 ## The Iron Law
 
+For work that falls within this skill's scope:
+
 ```
-NO PRODUCTION CODE WITHOUT A FAILING TEST FIRST
+NO PRODUCTION BEHAVIOR CODE WITHOUT A FAILING TEST FIRST
 ```
 
-Write code before the test? Delete it. Start over.
+Write in-scope behavior code before the test? Delete it. Start over.
 
-**No exceptions:**
+**No shortcuts for in-scope work:**
 - Don't keep it as "reference"
 - Don't "adapt" it while writing tests
 - Don't look at it
@@ -257,7 +260,7 @@ Tests-first force edge case discovery before implementing. Tests-after verify yo
 
 | Excuse | Reality |
 |--------|---------|
-| "Too simple to test" | Simple code breaks. Test takes 30 seconds. |
+| "This behavior is too simple to test" | If it is in scope, simplicity alone is not an exemption. Mechanical edits listed under “Implement directly” are exempt. |
 | "I'll test after" | Tests passing immediately prove nothing. |
 | "Tests after achieve same goals" | Tests-after = "what does this do?" Tests-first = "what should this do?" |
 | "Already manually tested" | Ad-hoc ≠ systematic. No record, can't re-run. |
@@ -269,9 +272,9 @@ Tests-first force edge case discovery before implementing. Tests-after verify yo
 | "Manual test faster" | Manual doesn't prove edge cases. You'll re-test every change. |
 | "Existing code has no tests" | You're improving it. Add tests for existing code. |
 
-## Red Flags - STOP and Start Over
+## Red Flags for In-Scope Behavior Work - STOP and Start Over
 
-- Code before test
+- Behavior code before test
 - Test after implementation
 - Test passes immediately
 - Can't explain why test failed
@@ -285,7 +288,7 @@ Tests-first force edge case discovery before implementing. Tests-after verify yo
 - "TDD is dogmatic, I'm being pragmatic"
 - "This is different because..."
 
-**All of these mean: Delete code. Start over with TDD.**
+**For in-scope behavior work, all of these mean: delete the code and start over with TDD.**
 
 ## Example: Bug Fix
 
@@ -326,7 +329,7 @@ Extract validation for multiple fields if needed.
 
 ## Verification Checklist
 
-Before marking work complete:
+Before marking in-scope TDD work complete:
 
 - [ ] Every new function/method has a test
 - [ ] Watched each test fail before implementing
@@ -337,7 +340,7 @@ Before marking work complete:
 - [ ] Tests use real code (mocks only if unavoidable)
 - [ ] Edge cases and errors covered
 
-Can't check all boxes? You skipped TDD. Start over.
+For in-scope work, if you can't check all boxes, you skipped TDD. Start over.
 
 ## When Stuck
 
@@ -352,7 +355,7 @@ Can't check all boxes? You skipped TDD. Start over.
 
 Bug found? Write failing test reproducing it. Follow TDD cycle. Test proves fix and prevents regression.
 
-Never fix bugs without a test.
+Never fix an in-scope behavior bug without a test.
 
 ## Testing Anti-Patterns
 
@@ -363,9 +366,11 @@ When adding mocks or test utilities, read @testing-anti-patterns.md to avoid com
 
 ## Final Rule
 
+For changes within this skill's scope:
+
 ```
-Production code → test exists and failed first
+Production behavior code → test exists and failed first
 Otherwise → not TDD
 ```
 
-No exceptions without your human partner's permission.
+For explicitly exempt mechanical changes, implement directly and use the smallest command that conclusively verifies the result.

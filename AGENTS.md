@@ -3,7 +3,7 @@
 ## Workflow Preferences
 
 - Use **superpowers skills** when available (brainstorming, writing-plans, subagent-driven-development, test-driven-development, etc.)
-- Use **subagents** for delegation — scout first, then plan, then implement
+- Use **subagents** for non-trivial delegation: scout unfamiliar or broad code, plan multi-step work, then implement. For small, well-scoped mechanical edits, inspect the relevant file and implement directly without mandatory scouting.
 - Search the web with **brave-search** when you need current docs or information; pair with **defuddle** to extract clean full-page content from result URLs
 - **When the user corrects you, proactively save the lesson** using `memory_save` with `source: "correction"`.
 
