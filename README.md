@@ -15,7 +15,7 @@ Personal [pi](https://github.com/badlogic/pi-mono) dotfiles — extensions, skil
 │   └── skills/            # Superpowers (TDD, debugging, code review, planning, etc.)
 ├── general/               # General-purpose tools (useful everywhere)
 │   ├── extensions/        # subagent, memory, notifications
-│   └── skills/            # brave-search, browser-tools, defuddle
+│   └── skills/            # brave-search, browser-tools, defuddle, annas-archive
 └── personal/              # Personal skills (non-engineering workflows)
     └── skills/            # ticktick, obsidian-cli, obsidian-markdown, obsidian-bases, json-canvas
 ```
@@ -42,6 +42,7 @@ Extensions and skills that are valuable in any context.
 | **brave-search/** | Skill | Web search + page content extraction. Requires `BRAVE_API_KEY` |
 | **browser-tools/** | Skill | Browser automation via Chrome DevTools Protocol. Requires Chrome |
 | **defuddle/** | Skill | Clean article extraction from URLs. Prefer over `WebFetch` for standard web pages. Requires `defuddle` CLI (`npm i -g defuddle`) |
+| **annas-archive/** | Skill | Access Anna's Archive mirrors, torrent listings, metadata, and API endpoints |
 
 ### `engineering/` — Software development
 
