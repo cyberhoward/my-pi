@@ -7,6 +7,12 @@ description: Use selectively for unfamiliar or consequential feature and behavio
 
 Use design exploration when it changes a consequential decision, not as a prerequisite for every edit. Respect an explicit request for interactive design or planning-only work; otherwise, turn an authorized request into a proportionate implementation path.
 
+## When to use or skip
+
+Use brainstorming when architecture, system boundaries, data models, APIs, cross-service interactions, scope, or requirements remain unresolved; when viable approaches have material product or technical trade-offs; or when the user asks to explore, ideate, design, or compare approaches. Ask: **would implementing now silently choose a consequential direction not settled by the request or repository?** If so, explore it.
+
+Skip it for exact localized outcomes; mechanical maintenance such as typos, renames, formatting, dependency bumps, and straightforward configuration; established-behavior bug fixes (use debugging and TDD); and implementation of an approved design, detailed specification, or existing plan. Do not add a test surface or design ceremony solely for a low-risk mechanical edit.
+
 ## Process
 
 1. Inspect relevant project context, conventions, constraints, and existing behavior.

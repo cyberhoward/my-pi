@@ -14,11 +14,11 @@ Fresh context windows do **not** isolate the filesystem or Git index. In a share
 1. Read the request, relevant plan or requirements, repository guidance, current status, and baseline evidence.
 2. For unfamiliar or consequential architecture, delegate reconnaissance to `scout` and planning to `planner`; include the original requirements in every handoff. The planner and scout are read-only.
 3. Split only independent work. Give each worker exact allowed files, dependencies, working directory, acceptance criteria, relevant baseline failures, verification commands, and delivery permissions.
-4. Dispatch independent workers concurrently with `subagent`. Schedule dependent or overlapping work after its prerequisite or reassign the shared file.
-5. Inspect reports and actual diffs, run integration checks, and request an independent `reviewer` review for meaningful work. The reviewer is read-only.
-6. Evaluate findings against the requirements and code. Workers fix relevant, understood issues and rerun affected checks. Ask a focused question only when a material decision remains unresolved; continue independent work.
+4. Dispatch independent workers concurrently with `subagent`; schedule dependent or overlapping work after its prerequisite or reassign the shared file. Once an independent unit is ready, dispatch its Astra review while other independent implementation continues.
+5. Track every pending review explicitly. Inspect reports and actual diffs, run integration checks, and request one independent, read-only `reviewer` review for each meaningful completed unit or the substantial integrated change.
+6. Evaluate findings against the requirements and code. If a reviewer reports a relevant serious issue, pause launching dependent work, let unrelated active work reach a safe checkpoint, fix the issue, and rerun affected checks before unblocking its dependents. Record justified non-blocking findings. Ask a focused question only when a material decision remains unresolved; continue independent work.
 
-A review finding is technical input, not new user scope. One review can cover specification, architecture, quality, and security. Add separate review stages only for risk that warrants them. “Ready” means the reviewer’s assessment of the inspected state; it never authorizes merge, deployment, or another delivery action.
+A review finding is technical input, not new user scope. One proportionate combined review can cover specification, architecture, quality, and security; add separate review stages only for risk that warrants them. “Ready” means the reviewer’s assessment of the inspected state; it never authorizes merge, deployment, or another delivery action.
 
 ## Delegation contract
 
