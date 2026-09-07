@@ -1,84 +1,29 @@
 ---
 name: executing-plans
-description: Use when you have a written implementation plan to execute in a separate session with review checkpoints
+description: Use to carry an implementation plan through authorized work with proportionate verification.
 ---
 
 # Executing Plans
 
-## Overview
+Read the plan, compare it with the request and current repository, then execute its coherent units. A plan guides work; update it when evidence shows a safer or more correct approach. Respect explicit plan-only, stop, interactive, or read-only instructions.
 
-Load plan, review critically, execute tasks in batches, report for review between batches.
+## Execution loop
 
-**Core principle:** Batch execution with checkpoints for architect review.
+1. Inspect the affected files and record relevant baseline evidence before edits when practical.
+2. Execute ordered work; run independent, disjoint tasks in parallel only with explicit ownership and safe integration.
+3. Verify each meaningful unit using the plan’s focused check or a better project-appropriate check.
+4. Fix relevant failures and review findings autonomously. Preserve evidence of unrelated baseline failures.
+5. Continue through remaining authorized units, giving non-blocking updates when useful.
+6. Complete only the delivery actions explicitly authorized by the user or delegated coordinator.
 
-**Announce at start:** "I'm using the executing-plans skill to implement this plan."
+Use a plain checklist if helpful. Do not require a separate session, worktree, fixed three-task batch, report-and-wait checkpoint, or a completion menu.
 
-## The Process
+## Failures and blockers
 
-### Step 1: Load and Review Plan
-1. Read plan file
-2. Review critically - identify any questions or concerns about the plan
-3. If concerns: Raise them with your human partner before starting
-4. If no concerns: Create TodoWrite and proceed
+Investigate ordinary missing dependencies, test failures, and unclear implementation details from repository evidence. A new relevant regression requires investigation and repair before a readiness claim. An unrelated pre-existing failure does not require an unrelated repair campaign: document the baseline command, failure, relevance, and focused evidence.
 
-### Step 2: Execute Batch
-**Default: First 3 tasks**
+Ask only if a missing decision materially changes scope, correctness, compatibility, cost, or authorization and evidence cannot resolve it. Continue independent work while it is blocked. After repeated failed hypotheses or a fundamental mismatch, reassess the architecture, preferably with the planner for consequential work.
 
-For each task:
-1. Mark as in_progress
-2. Follow each step exactly (plan has bite-sized steps)
-3. Run verifications as specified
-4. Mark as completed
+## Completion
 
-### Step 3: Report
-When batch complete:
-- Show what was implemented
-- Show verification output
-- Say: "Ready for feedback."
-
-### Step 4: Continue
-Based on feedback:
-- Apply changes if needed
-- Execute next batch
-- Repeat until complete
-
-### Step 5: Complete Development
-
-After all tasks complete and verified:
-- Announce: "I'm using the finishing-a-development-branch skill to complete this work."
-- **REQUIRED SUB-SKILL:** Use superpowers:finishing-a-development-branch
-- Follow that skill to verify tests, present options, execute choice
-
-## When to Stop and Ask for Help
-
-**STOP executing immediately when:**
-- Hit a blocker mid-batch (missing dependency, test fails, instruction unclear)
-- Plan has critical gaps preventing starting
-- You don't understand an instruction
-- Verification fails repeatedly
-
-**Ask for clarification rather than guessing.**
-
-## When to Revisit Earlier Steps
-
-**Return to Review (Step 1) when:**
-- Partner updates the plan based on your feedback
-- Fundamental approach needs rethinking
-
-**Don't force through blockers** - stop and ask.
-
-## Remember
-- Review plan critically first
-- Follow plan steps exactly
-- Don't skip verifications
-- Reference skills when plan says to
-- Between batches: just report and wait
-- Stop when blocked, don't guess
-- Never start implementation on main/master branch without explicit user consent
-
-## Integration
-
-**Required workflow skills:**
-- **superpowers:using-git-worktrees** - REQUIRED: Set up isolated workspace before starting
-- **superpowers:writing-plans** - Creates the plan this skill executes
-- **superpowers:finishing-a-development-branch** - Complete development after all tasks
+Report changed files, commands and results, baseline limitations, and any unverified behavior precisely. Do not claim a clean suite from focused checks. Preserve user work and do not start Git delivery, merge, cleanup, or destructive actions unless authorized.

@@ -54,11 +54,7 @@ Use the quiz questions from the researcher's output as a starting point, but ada
 
 ### Phase 4 — Save
 
-When the user says "done", "save", "I'm finished", or similar:
-
-1. **Quick retrieval test** — Ask 3 rapid-fire questions from the session
-2. **Score and note gaps**
-3. **Save notes** to `.learning/topics/<topic-name>.md`
+When the user says "done", "save", "I'm finished", or similar, end the teaching session and save a concise topic summary to `.learning/topics/<topic-name>.md`. Do not require a quiz or retrieval test. Offer an optional retrieval exercise only if the user asks for one.
 
 ## Topic File Format
 

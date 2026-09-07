@@ -1,14 +1,12 @@
-# Academic Test: Systematic Debugging Skill
+# Read-Only Decision Check: Systematic Debugging
 
-You have access to the systematic debugging skill at skills/debugging/systematic-debugging
+Read `systematic-debugging/SKILL.md` and answer from the skill:
 
-Read the skill and answer these questions based SOLELY on what the skill says:
+1. What evidence should be gathered before a non-obvious repair?
+2. How does the skill distinguish a baseline/environment failure from a new regression?
+3. What makes a hypothesis useful?
+4. What should happen after repeated evidence-based attempts challenge the design?
+5. When should the user be asked a question?
+6. Does an explicit read-only or “stop” instruction remain binding?
 
-1. What are the four phases of systematic debugging?
-2. What must you do BEFORE attempting any fix?
-3. In Phase 3, what should you do if your first hypothesis doesn't work?
-4. What does the skill say about fixing multiple things at once?
-5. What should you do if you don't fully understand the issue?
-6. Is it ever acceptable to skip the process for simple bugs?
-
-Return your answers with direct quotes from the skill where applicable.
+A good answer describes the evidence loop and instruction hierarchy. It should not claim that a live incident, fixture, or command was run.

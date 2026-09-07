@@ -1,109 +1,49 @@
 ---
 name: ticktick
-description: "Personal task management workflows for TickTick. Use when the user wants to process their inbox, do a weekly review, capture tasks, triage, categorize, tag, or manage their task system. Also use when they mention tasks, todos, inbox, or weekly review."
+description: "Personal TickTick task management: inbox processing, weekly review, or an explicitly requested personal capture/update. Do not use for engineering task lists, project checklists, or code-work planning."
 ---
 
 # TickTick Task Management
 
-## First Step — Always
+Use this skill only for clear personal TickTick intent: processing a personal inbox, a personal weekly review, or an explicit request to create, update, or move a TickTick task. Mentions of engineering tasks, todos, checklists, plans, issues, or a repository task list do not invoke this skill.
 
-Before ANY workflow, call the `ticktick` tool with `action: "load_config"` to fetch the full system configuration. This returns:
-- **Tags** — prefixed tag taxonomy (area:, action:, energy:, loc:)
-- **Projects Guide** — what each project is for and routing rules
-- **Review Checklist** — weekly review protocol
-- **Current Priorities** — user's top life themes
-- **Inbox Processing Rules** — decision tree for triaging tasks
+## Start with context
 
-Parse and internalize this config before proceeding. Use it for all categorization decisions.
+For a personal TickTick workflow, call `ticktick` with `action: "load_config"` before categorizing or mutating. Use its tags, projects guide, review checklist, priorities, and inbox rules. If the requested action is already exact and authorized (for example, “Create task X in Inbox”), load configuration and carry it out without a redundant confirmation.
 
-## Detecting Workflow
+## Workflow selection
 
-Based on what the user says, pick one:
-- **Inbox processing** — "process inbox", "triage", "categorize tasks", "clean up inbox"
-- **Weekly review** — "weekly review", "review my tasks", "go through my system"
-- **Quick capture** — "add a task", "remind me to", "I need to", or any task creation request
+- **Inbox processing:** “process my TickTick inbox”, “triage my personal tasks”, or “clean up my TickTick inbox”.
+- **Weekly review:** “review my TickTick tasks” or “weekly review”.
+- **Capture or update:** an explicit request to create, update, complete, or move a named TickTick task.
 
-If ambiguous, ask which workflow they want.
+Ask which personal workflow is intended only when it remains ambiguous after context.
 
-## Workflow 1: Inbox Processing
+## Inbox processing
 
-### Step 1: Fetch inbox
-Call `ticktick` with `action: "list_tasks"`, `project: "Inbox"`.
+1. List Inbox tasks with `action: "list_tasks"`, `project: "Inbox"`.
+2. Propose project, tags, priority, and date for each task using the configuration. Group ambiguous items separately.
+3. Present the batch proposal, including this warning for each proposed move: `move_task` recreates the task in the target project, changes its ID, and may not preserve comments, history, or metadata.
+4. Apply categorization or moves only after the user confirms the proposed batch or a specified subset. Use `update_task` for tags/priority and `move_task` only for approved moves.
+5. Discuss ambiguous items individually before changing them.
 
-### Step 2: Analyze and batch propose
-For each task, propose:
-- **Project** — where it should live (per Projects Guide from config)
-- **Tags** — area: + optional action:, energy:, loc: tags (per Tag taxonomy from config)
-- **Priority** — Eisenhower via priority flags (see Priority Assignment below)
-- **Date** — if applicable
+## Weekly review
 
-Format each proposal as:
-```
-Task: "[title]"
-  → Project: [emoji] [name]
-  → Tags: [tag1], [tag2]
-  → Priority: [emoji] [level] ([reasoning])
-  → Date: [date or "none"]
-```
+Follow the configured review checklist: inbox, priority flags, waiting-for tasks, high-priority work, medium-priority backlog, current priorities, and cleanup. Present findings and proposals; confirm before any batch mutation. A review may continue through read-only steps without repeated confirmation.
 
-### Step 3: Flag ambiguous tasks
-Separate tasks that are ambiguous into a "needs discussion" group. A task is ambiguous when:
-- It could fit multiple projects equally well
-- It's a question or reflection that might be actionable OR just a thought
-- It has no clear action verb or deliverable
-- Its content needs interpretation for categorization
+## Explicit capture or update
 
-### Step 4: Present to user
-Show the batch proposal with a summary:
-"**X tasks categorized, Y flagged for discussion.** Review the batch above — tell me to apply all, or point out specific tasks to adjust."
+For an exact authorized request, infer routine title, tags, priority, and date from the configuration, then perform the named ordinary capture or update and report what changed. Do not apply unrelated suggested changes. If the request leaves a material target, content, or destructive consequence unresolved, present a concise proposal and ask that focused question.
 
-Group proposals by target project for readability.
+## Priority assignment
 
-### Step 5: Apply
-On approval, update each task via `ticktick` with `action: "update_task"` with the agreed tags and priority.
-
-**Important:** Use `move_task` to move tasks between projects when the user approves. This is implemented as create-in-target-project + delete-original, so the task ID changes and comments/history may not be preserved.
-
-### Step 6: Handle ambiguous tasks
-Walk through flagged tasks one at a time. Present options, get user input, then apply.
-
-## Workflow 2: Weekly Review
-
-Follow the Review Checklist from Config step by step:
-
-1. **Process Inbox → Zero** — trigger Inbox Processing workflow (steps above)
-2. **Set Priority Flags** — fetch tasks across projects that have no priority set, suggest priorities
-3. **Review ⏳Waiting For** — call `ticktick` with `action: "list_tasks"`, `project: "⏳Waiting For"`, ask about follow-ups
-4. **Review 🔴 High Priority** — fetch high-priority tasks, confirm still urgent + important, identify top 3 for the week
-5. **Check 🟡 Medium Priority Backlog** — pick 2-3 to advance, suggest dates
-6. **Align with Current Priorities** — compare this week's focus against Current Priorities note from config
-7. **Clean Up** — identify completed tasks, duplicates, stale items
-
-Present each step's findings and get confirmation before moving to the next.
-
-## Workflow 3: Quick Capture
-
-1. User describes a task naturally
-2. Based on Config (Projects Guide + Tags), auto-suggest:
-   - **Title** — clean up user's phrasing if needed
-   - **Project** — best fit per routing rules
-   - **Tags** — relevant area: + action: tags
-   - **Priority** — per Eisenhower mapping
-   - **Date** — if mentioned or implied
-3. Present the proposal concisely:
-   "**[title]** → [project] | [tags] | [priority] | [date]"
-4. On confirmation, create via `ticktick` with `action: "create_task"`
-
-## Priority Assignment (Eisenhower Matrix)
-
-Use TickTick's built-in priority flags:
-- 🔴 **High** — Urgent + Important: deadlines, people waiting, time-sensitive obligations
-- 🟡 **Medium** — Not Urgent + Important: growth, planning, relationship building, health
-- 🔵 **Low** — Urgent + Not Important: nice to have, could delegate or automate
-- ⚪ **None** — Not Urgent + Not Important: someday/maybe, tag with `action:someday`
+- 🔴 **High:** urgent and important.
+- 🟡 **Medium:** important but not urgent.
+- 🔵 **Low:** urgent but not important.
+- ⚪ **None:** neither urgent nor important; use `action:someday` where appropriate.
 
 ## Limitations
 
-- **Move caveat:** `move_task` recreates the task in the target project and deletes the original; this changes the task ID and may not preserve comments/history/metadata that `tickrs` does not expose.
-- **Cannot list tags globally** — the tag taxonomy lives in the Config project's Tags note.
-- **Cannot create subtasks independently** — use the `items` parameter when creating/updating tasks.
+- `move_task` recreates the task in the target project and deletes the original; task ID, comments, history, and metadata may not be preserved.
+- Global tag listing is unavailable; use the Config project’s Tags note.
+- Subtasks must be supplied through the `items` parameter when creating or updating a task.

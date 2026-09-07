@@ -1,78 +1,51 @@
 # Implementer Subagent Prompt Template
 
-Use this template when dispatching an implementer subagent.
+Dispatch a GPT-5 `worker` with the actual `subagent` tool. Agent definitions select the model; do not add model arguments.
 
-```
-Task tool (general-purpose):
-  description: "Implement Task N: [task name]"
-  prompt: |
-    You are implementing Task N: [task name]
+```text
+subagent({
+  agent: "worker",
+  cwd: "[PATH]",
+  task: `
+Original requirements:
+[PASTE THE COMPLETE USER REQUEST OR RELEVANT PLAN EXCERPT]
 
-    ## Task Description
+Task:
+[BOUNDED TASK AND EXPECTED OUTCOME]
 
-    [FULL TEXT of task from plan - paste it here, don't make subagent read file]
+Working directory:
+[PATH]
 
-    ## Context
+Allowed files:
+[EXACT PATHS OR GLOBS]
 
-    [Scene-setting: where this fits, dependencies, architectural context]
+Context and dependencies:
+[REPOSITORY PATTERNS, PRIOR OUTPUT, AND DEPENDENCIES]
 
-    ## Before You Begin
+Acceptance criteria:
+[OBSERVABLE REQUIREMENTS]
 
-    If you have questions about:
-    - The requirements or acceptance criteria
-    - The approach or implementation strategy
-    - Dependencies or assumptions
-    - Anything unclear in the task description
+Baseline failures:
+[KNOWN FAILURES, OR "NONE RECORDED"]
 
-    **Ask them now.** Raise any concerns before starting work.
+Verification:
+[FOCUSED COMMANDS OR READ-ONLY DECISION SCENARIOS]
 
-    ## Your Job
+Delivery permissions:
+[EXACT PERMISSIONS, for example: edit and run checks only; do not stage, commit, change branch, push, create a PR, or modify files outside the allowed set.]
 
-    Once you're clear on requirements:
-    1. Implement exactly what the task specifies
-    2. Write tests (following TDD if task says to)
-    3. Verify implementation works
-    4. Commit your work
-    5. Self-review (see below)
-    6. Report back
+Work autonomously within this scope. Inspect repository evidence and resolve routine assumptions using existing patterns. Preserve unrelated user work. Do not overwrite other owners' files or shared Git state. Ask a focused question only when missing information materially changes correctness, compatibility, cost, scope, or authorization and cannot be resolved from evidence; continue independent work while blocked.
 
-    Work from: [directory]
+Prefer behavior-oriented tests when changing behavior. For documentation or configuration, use meaningful parsing, focused checks, or scenario validation rather than invented tests. Investigate relevant failures and distinguish new failures from recorded baseline failures.
 
-    **While you work:** If you encounter something unexpected or unclear, **ask questions**.
-    It's always OK to pause and clarify. Don't guess or make assumptions.
+Before reporting, inspect your diff and self-review for requirement coverage, unintended scope, safety, compatibility, and maintainability. Fix issues you can establish are relevant.
 
-    ## Before Reporting Back: Self-Review
-
-    Review your work with fresh eyes. Ask yourself:
-
-    **Completeness:**
-    - Did I fully implement everything in the spec?
-    - Did I miss any requirements?
-    - Are there edge cases I didn't handle?
-
-    **Quality:**
-    - Is this my best work?
-    - Are names clear and accurate (match what things do, not how they work)?
-    - Is the code clean and maintainable?
-
-    **Discipline:**
-    - Did I avoid overbuilding (YAGNI)?
-    - Did I only build what was requested?
-    - Did I follow existing patterns in the codebase?
-
-    **Testing:**
-    - Do tests actually verify behavior (not just mock behavior)?
-    - Did I follow TDD if required?
-    - Are tests comprehensive?
-
-    If you find issues during self-review, fix them now before reporting.
-
-    ## Report Format
-
-    When done, report:
-    - What you implemented
-    - What you tested and test results
-    - Files changed
-    - Self-review findings (if any)
-    - Any issues or concerns
+Report:
+- completed outcome and any assumptions;
+- exact files changed;
+- verification commands/scenarios and results;
+- baseline failures or limitations; and
+- blockers or decisions that need coordinator input.
+`,
+})
 ```

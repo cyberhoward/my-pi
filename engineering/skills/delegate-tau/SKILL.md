@@ -1,22 +1,24 @@
 ---
 name: delegate-tau
-description: Use when a task should be delegated to Tau via GitHub issue, especially unresolved work, open-ended investigation, deferred follow-up, or direct requests to assign mytau
+description: Use only when the user explicitly requests or authorizes delegation to Tau via a GitHub issue
 ---
 
 # Delegate Tau
 
 ## Overview
 
-Create a GitHub issue in the current repo and assign GitHub user `mytau`. Use `gh` first. Match the issue depth to the invocation mode: open-ended delegation stays lightweight; direct invocation gets categorized and structured.
+When explicitly requested or authorized, create a GitHub issue in the current repo and assign GitHub user `mytau`. Use `gh` first. Do not invoke this skill merely because work is unresolved, deferred, or open-ended. Match issue depth to the authorized request: open-ended delegation stays lightweight; direct invocation gets categorized and structured.
 
 ## Invocation Modes
 
 | Mode | Trigger | Issue style |
 | --- | --- | --- |
-| Delegation | “delegate this to Tau”, “Tau should look at this”, unclear scope, follow-up needed later | Open-ended investigation issue. Include available context, avoid deep research, avoid over-scoping. |
+| Delegation | “delegate this to Tau”, “Tau should look at this”, or another explicit authorization | Open-ended investigation issue. Include available context, avoid deep research, avoid over-scoping. |
 | Direct | `/skill:delegate-tau ...`, “create a Tau issue for ...” | Categorized issue with the best standard label and useful fields for that category. Infer category; ask only if essential info is missing. |
 
 ## Required Workflow
+
+The user’s explicit request to delegate authorizes this issue and its necessary label setup, but not unrelated external mutations.
 
 1. Confirm you are in a git repo with a GitHub remote: `git remote -v`.
 2. Draft the body in a temp file. Do not put multiline bodies directly in shell args.

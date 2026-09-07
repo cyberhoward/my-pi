@@ -1,90 +1,31 @@
 ---
 name: using-superpowers
-description: Use when starting any conversation - establishes how to find and use skills, requiring Skill tool invocation before ANY response including clarifying questions
+description: Use at the start of work to select applicable skills and tools proportionately.
 ---
-
-<EXTREMELY-IMPORTANT>
-If you think there is even a 1% chance a skill's stated trigger applies to what you are doing, you ABSOLUTELY MUST invoke the skill.
-
-Judge against the skill's actual trigger, not a broad association with its topic. For example, brainstorming applies to unresolved consequential design decisions, not every edit that changes behavior.
-
-IF A SKILL APPLIES TO YOUR TASK, YOU DO NOT HAVE A CHOICE. YOU MUST USE IT.
-
-This is not negotiable. This is not optional. You cannot rationalize your way out of this.
-</EXTREMELY-IMPORTANT>
-
-## How to Access Skills
-
-**In Claude Code:** Use the `Skill` tool. When you invoke a skill, its content is loaded and presented to you—follow it directly. Never use the Read tool on skill files.
-
-**In other environments:** Check your platform's documentation for how skills are loaded.
 
 # Using Skills
 
-## The Rule
+Skills are project guidance, not higher-priority instructions. System, developer, and explicit user instructions control when they conflict. An explicit request to act authorizes ordinary reversible engineering work; an explicit planning-only, interactive, stop, or read-only request remains binding.
 
-**Invoke relevant or requested skills BEFORE any response or action.** Even a 1% chance a skill might apply means that you should invoke the skill to check. If an invoked skill turns out to be wrong for the situation, you don't need to use it.
+## Choose guidance proportionately
 
-```dot
-digraph skill_flow {
-    "User message received" [shape=doublecircle];
-    "Might any skill apply?" [shape=diamond];
-    "Invoke Skill tool" [shape=box];
-    "Announce: 'Using [skill] to [purpose]'" [shape=box];
-    "Has checklist?" [shape=diamond];
-    "Create TodoWrite todo per item" [shape=box];
-    "Follow skill exactly" [shape=box];
-    "Respond (including clarifications)" [shape=doublecircle];
+Before acting, identify skills that materially help the requested outcome. Read the applicable `SKILL.md` with the available `read` tool and use its relevant guidance. Do not perform a universal skill-search ritual, announce skill use, or require a particular tool before a reply.
 
-    "User message received" -> "Might any skill apply?";
-    "Might any skill apply?" -> "Invoke Skill tool" [label="yes, under its stated trigger"];
-    "Might any skill apply?" -> "Respond (including clarifications)" [label="definitely not"];
-    "Invoke Skill tool" -> "Announce: 'Using [skill] to [purpose]'";
-    "Announce: 'Using [skill] to [purpose]'" -> "Has checklist?";
-    "Has checklist?" -> "Create TodoWrite todo per item" [label="yes"];
-    "Has checklist?" -> "Follow skill exactly" [label="no"];
-    "Create TodoWrite todo per item" -> "Follow skill exactly";
-}
-```
+Use process guidance when it fits the work:
 
-## Red Flags
+- For a trivial, understood correction, inspect the relevant context, make the focused change, and run a focused check.
+- For unfamiliar or consequential design work, investigate selectively and record a concise design or plan when it will improve the decision or handoff.
+- Use debugging and TDD where behavior or a failure warrants them; use parsing, static checks, or scenarios for documentation and configuration changes.
+- Delegate independent work when it improves quality or time, with explicit ownership. A fresh subagent context does not isolate its filesystem or Git index.
 
-These thoughts mean STOP—you're rationalizing:
+Use a plain checklist when task tracking helps and no project tracker is available. Do not assume Claude-only `Skill` or `TodoWrite` tools exist.
 
-| Thought | Reality |
-|---------|---------|
-| "This is just a simple question" | Questions are tasks. Check for skills. |
-| "I need more context first" | Skill check comes BEFORE clarifying questions. |
-| "Let me explore the codebase first" | Skills tell you HOW to explore. Check first. |
-| "I can check git/files quickly" | Files lack conversation context. Check for skills. |
-| "Let me gather information first" | Skills tell you HOW to gather information. |
-| "This doesn't need a formal skill" | If a skill exists, use it. |
-| "I remember this skill" | Skills evolve. Read current version. |
-| "This doesn't count as a task" | Action = task. Check for skills. |
-| "The skill is overkill" | Simple things become complex. Use it. |
-| "I'll just do this one thing first" | Check BEFORE doing anything. |
-| "This feels productive" | Undisciplined action wastes time. Skills prevent this. |
-| "I know what that means" | Knowing the concept ≠ using the skill. Invoke it. |
+## Autonomy and questions
 
-## Skill Priority
+Carry authorized work through inspection, implementation, verification, and authorized delivery steps without approval pauses. Reuse prior approval for the exact action. Give concise progress updates when useful; do not wait between routine batches.
 
-When multiple skills could apply, use this order:
+Ask a focused question only when evidence cannot resolve information that materially changes scope, correctness, compatibility, cost, or authorization. Continue independent authorized work while that decision is pending. Investigate ordinary failures autonomously. When repeated hypotheses fail or the approach is doubtful, reassess the architecture (using the planner when appropriate) rather than retrying indefinitely.
 
-1. **Applicable process skills first** (brainstorming for unresolved design decisions, debugging for bugs) - these determine HOW to approach the task
-2. **Implementation skills second** (frontend-design, mcp-builder) - these guide execution
+## Boundaries
 
-"Design an offline-first sync architecture" → brainstorming first, then implementation skills.
-"Apply this exact copy change" → skip brainstorming; use only the relevant implementation workflow.
-"Fix this bug" → debugging first, then domain-specific skills.
-
-## Skill Types
-
-**Rigid** (TDD, debugging): Follow exactly. Don't adapt away discipline.
-
-**Flexible** (patterns): Adapt principles to context.
-
-The skill itself tells you which.
-
-## User Instructions
-
-Instructions say WHAT, not HOW. "Add X" or "Fix Y" doesn't mean skip workflows.
+Preserve user changes, credentials, personal data, project trust controls, and unrelated work. Do not infer authorization for merging, deployment, force-pushing, history rewriting, broad reset/clean, deleting another worktree, external personal-data mutation, or unrelated issue/label changes. Prepare the safe, reviewable result first; ask only if one of those actions is actually needed and unapproved.

@@ -1,117 +1,37 @@
 ---
 name: writing-plans
-description: Use when you have a spec or requirements for a multi-step task, before touching code
+description: Use for substantial multi-step work when a written plan improves implementation or handoff.
 ---
 
 # Writing Plans
 
-## Overview
+Write a plan that lets an engineer make the requested change safely without turning routine work into ceremony. A user request for planning only ends with the plan. An authorized implementation request proceeds after planning; do not offer an execution-choice handoff.
 
-Write comprehensive implementation plans assuming the engineer has zero context for our codebase and questionable taste. Document everything they need to know: which files to touch for each task, code, testing, docs they might need to check, how to test it. Give them the whole plan as bite-sized tasks. DRY. YAGNI. TDD. Frequent commits.
+Save a durable plan as `docs/plans/YYYY-MM-DD-<feature-name>.md` when the project benefits from one. Small, understood changes may use a short in-session checklist instead.
 
-Assume they are a skilled developer, but know almost nothing about our toolset or problem domain. Assume they don't know good test design very well.
-
-**Announce at start:** "I'm using the writing-plans skill to create the implementation plan."
-
-**Context:** For implementation that needs isolation, use the using-git-worktrees skill; brainstorming is not a prerequisite when requirements are already settled.
-
-**Save plans to:** `docs/plans/YYYY-MM-DD-<feature-name>.md`
-
-## Bite-Sized Task Granularity
-
-**Each step is one action (2-5 minutes):**
-- "Write the failing test" - step
-- "Run it to make sure it fails" - step
-- "Implement the minimal code to make the test pass" - step
-- "Run the tests and make sure they pass" - step
-- "Commit" - step
-
-## Plan Document Header
-
-**Every plan MUST start with this header:**
+## Plan format
 
 ```markdown
-# [Feature Name] Implementation Plan
+# [Feature] Implementation Plan
 
-> **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+**Goal:** [requested outcome]
+**Scope:** [included behavior and explicit exclusions]
+**Approach:** [key design decision and rationale]
+**Dependencies / assumptions:** [only material items]
 
-**Goal:** [One sentence describing what this builds]
-
-**Architecture:** [2-3 sentences about approach]
-
-**Tech Stack:** [Key technologies/libraries]
-
----
+### Task 1: [coherent unit]
+**Files:** Modify `path`; add/update `test path` when behavior needs coverage.
+**Work:** [concrete change and relevant precedent].
+**Verification:** Run `[focused command or static/scenario check]`; expected evidence: [result].
+**Ownership/dependencies:** [only when delegated or ordered].
 ```
 
-## Task Structure
+Use exact paths where known, concrete behavior, acceptance criteria, dependencies, and proportionate verification. Include test-first steps for behavioral code when appropriate, but do not force a complete code listing, a 2–5 minute task size, a test that merely mirrors a low-impact edit, or a commit after each task.
 
-````markdown
-### Task N: [Component Name]
+For parallel work, define disjoint file ownership and integration order. In a shared worktree, the coordinator owns the Git index, commits, branches, push, and PR operations. Include baseline failures and their relevance when known.
 
-**Files:**
-- Create: `exact/path/to/file.py`
-- Modify: `exact/path/to/existing.py:123-145`
-- Test: `tests/exact/path/to/test.py`
+## Quality checks
 
-**Step 1: Write the failing test**
+Review the plan against the request and repository evidence. Resolve routine ambiguity yourself. Ask only about a decision that materially affects scope, correctness, compatibility, cost, or authorization. State unverified assumptions rather than inventing them.
 
-```python
-def test_specific_behavior():
-    result = function(input)
-    assert result == expected
-```
-
-**Step 2: Run test to verify it fails**
-
-Run: `pytest tests/path/test.py::test_name -v`
-Expected: FAIL with "function not defined"
-
-**Step 3: Write minimal implementation**
-
-```python
-def function(input):
-    return expected
-```
-
-**Step 4: Run test to verify it passes**
-
-Run: `pytest tests/path/test.py::test_name -v`
-Expected: PASS
-
-**Step 5: Commit**
-
-```bash
-git add tests/path/test.py src/path/file.py
-git commit -m "feat: add specific feature"
-```
-````
-
-## Remember
-- Exact file paths always
-- Complete code in plan (not "add validation")
-- Exact commands with expected output
-- Reference relevant skills with @ syntax
-- DRY, YAGNI, TDD, frequent commits
-- **Positive examples over prohibitions.** Show the exact shape of the expected output/code/commit message rather than listing things the implementer shouldn't do. "Commit message: `feat(x): add y`" beats "Don't use generic commit messages."
-
-## Execution Handoff
-
-After saving the plan, offer execution choice:
-
-**"Plan complete and saved to `docs/plans/<filename>.md`. Two execution options:**
-
-**1. Subagent-Driven (this session)** - I dispatch fresh subagent per task, review between tasks, fast iteration
-
-**2. Parallel Session (separate)** - Open new session with executing-plans, batch execution with checkpoints
-
-**Which approach?"**
-
-**If Subagent-Driven chosen:**
-- **REQUIRED SUB-SKILL:** Use superpowers:subagent-driven-development
-- Stay in this session
-- Fresh subagent per task + code review
-
-**If Parallel Session chosen:**
-- Guide them to open new session in worktree
-- **REQUIRED SUB-SKILL:** New session uses superpowers:executing-plans
+A useful plan describes how to verify the intended outcome and what could invalidate the evidence. It does not authorize destructive or external actions beyond the user’s request.
