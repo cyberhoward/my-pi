@@ -2,10 +2,15 @@
 
 ## Workflow Preferences
 
-- Use **superpowers skills** when available (brainstorming, writing-plans, subagent-driven-development, test-driven-development, etc.)
-- Use **subagents** for delegation — scout first, then plan, then implement
-- Search the web with **brave-search** when you need current docs or information; pair with **defuddle** to extract clean full-page content from result URLs
-- **When the user corrects you, proactively save the lesson** using `memory_save` with `source: "correction"`.
+Instructions from the system, developer, and user take precedence over skills. Treat an explicit request for action as authorization to carry out its ordinary, reversible engineering work; skills guide judgment and cannot impose approval gates that conflict with it. Preserve project trust controls, credentials, personal data, user changes, and unrelated work.
+
+- Choose applicable **superpowers skills** proportionately. A trivial understood fix needs focused inspection, implementation, and verification; substantial or unfamiliar work benefits from selective scouting, a concise plan, and architecture review when consequential.
+- Use **subagents** when independent ownership improves quality or time. In shared workspaces, assign disjoint files and keep Git index, commits, branches, push, and PR operations with one coordinator. Fresh contexts do not isolate files or the index.
+- Route implementation to GPT-5 workers and consequential architecture/planning or independent review to Astra as configured by agent frontmatter. Use the scout for routine reconnaissance; do not invent model aliases or silent fallbacks.
+- Resolve routine ambiguity from evidence and use reversible defaults. Ask a focused question only when missing information materially changes scope, correctness, compatibility, cost, or authorization and cannot be resolved; continue independent work while waiting. Reassess the approach after repeated failed hypotheses rather than escalating ordinary failures.
+- Capture relevant baseline evidence before edits when practical. Run checks proportionate to changed behavior, retain evidence of unrelated baseline failures, and state limitations precisely; focused checks do not mean every test passed.
+- Search the web with **brave-search** when current documentation or information is needed; pair with **defuddle** to extract clean full-page content from result URLs.
+- When the user corrects you, proactively save the lesson using `memory_save` with `source: "correction"`.
 
 ## Tool Configuration
 
@@ -31,7 +36,7 @@ Delegate tasks to specialized subagents with isolated context windows.
 - Parallel: `{ tasks: [{ agent: "scout", task: "..." }, ...] }` (up to 8 tasks, 4 concurrent)
 - Chain: `{ chain: [{ agent: "scout", task: "..." }, { agent: "planner", task: "Based on: {previous}" }] }`
 
-**Workflow prompts:** `/implement`, `/scout-and-plan`, `/implement-and-review`
+**Optional workflow presets:** `/implement`, `/scout-and-plan`, `/implement-and-review` may be available when installed for the project. Use `subagent` directly when they are absent; do not treat a preset as required.
 
 Default agents (loaded from `~/.my-pi/engineering/agents/`): `scout`, `planner`, `reviewer`, `worker`, `remover`, `tooling-researcher`.
 
@@ -40,7 +45,7 @@ Default agents (loaded from `~/.my-pi/engineering/agents/`): `scout`, `planner`,
 System notifications with a custom chime sound. Cross-platform (macOS + Linux).
 
 - `notify` — Send a system notification with optional chime sound
-- `ask_user` — Play chime + notification + prompt user for input. **Use this when you need the user's attention.**
+- `ask_user` — Play chime + notification + prompt user for input. Use this when the user’s attention is needed for a material decision.
 - `/ping` — Test the chime sound
 
 ### Persistent Memory (`memory_save`, `memory_search`, `memory_list`, `memory_remove`)
@@ -54,13 +59,8 @@ Persistent memory across sessions. Memories are auto-injected into the system pr
 
 **When the user corrects you, proactively save the lesson using `memory_save` with `source: "correction"`.**
 
-## Prompting Notes (Claude Opus 4.7)
+## Model and Prompting Guidance
 
-Opus 4.7 interprets instructions literally and calibrates behavior per task rather than following fixed scaffolding. Adjust accordingly:
+Use clear task scope, ownership, acceptance criteria, and verification commands in delegated work. GPT-6 Astra follows instructions closely and can pause for consequential ambiguity: direct it to complete authorized work, infer routine details from evidence, and ask only focused material-decision questions. Astra does not support `none` reasoning effort; use a supported effort. GPT-5 workers implement scoped changes and report exact checks and limitations.
 
-- **Be explicit about delegation.** 4.7 spawns fewer subagents by default. When a skill or workflow requires a subagent, state it as a requirement ("dispatch X"), not a suggestion ("consider using X").
-- **Be explicit about tool use.** 4.7 reasons more and uses tools less. When a task needs tool calls (scout a codebase, run a verification command, search the web), say so directly.
-- **Don't rely on inferred intent.** If you want a specific behavior, write it. 4.7 will not silently generalize from one item to another or infer requests you didn't make.
-- **Skip progress scaffolding.** Don't add instructions like "summarize progress every N tool calls" — 4.7 produces user-facing progress updates natively in long agentic traces. If the update style is wrong, describe the desired style explicitly with examples.
-- **Prefer positive examples over negative rules.** "Respond in 2-3 sentences with the file path" beats "Don't be verbose, don't add preamble, don't explain." Show the shape you want.
-- **Raise effort for complex work.** At low/medium effort, 4.7 scopes tightly to what was asked. For genuinely complex reasoning, either raise effort or add "think carefully through this before responding" to the prompt.
+Do not add ritual progress scaffolding, forced approval loops, or exhaustive test runs without a reason. State the desired output shape and the concrete evidence needed. For substantial work, give reviewers the actual requirements, diff, and verification evidence; reviewers remain read-only and a review result does not authorize merge or deployment.

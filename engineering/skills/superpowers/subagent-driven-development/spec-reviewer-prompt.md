@@ -1,61 +1,40 @@
-# Spec Compliance Reviewer Prompt Template
+# Requirements Reviewer Prompt Template
 
-Use this template when dispatching a spec compliance reviewer subagent.
+Dispatch an Astra `reviewer` for independent, read-only review when the completed unit is meaningful or risk warrants it. This review covers requirement compliance and may also flag architecture, security, quality, or test issues. Do not require a separate quality review unless risk justifies one.
 
-**Purpose:** Verify implementer built what was requested (nothing more, nothing less)
+```text
+subagent({
+  agent: "reviewer",
+  cwd: "[PATH]",
+  task: `
+Original requirements:
+[PASTE THE COMPLETE USER REQUEST OR RELEVANT PLAN EXCERPT]
 
+What was implemented:
+[WORKER SUMMARY]
+
+Working directory:
+[PATH]
+
+Changed files:
+[EXACT PATHS]
+
+Status inventory:
+[`git status --short`, including in-scope untracked files]
+
+Review target:
+[BASE_SHA..HEAD_SHA AND residual staged/unstaged/untracked work, OR "CURRENT WORKING DIFF"]
+
+Verification evidence:
+[COMMANDS, RESULTS, BASELINE FAILURES, AND LIMITATIONS]
+
+Read-only review: start with the status inventory and explicitly read every in-scope untracked file; `git diff` omits them. Inspect the actual diff and relevant code; if a committed range and residual working changes both exist, inspect both. Do not modify files or run builds. Do not rely on the implementer report alone.
+
+Compare the implementation to the original requirements. Check missing or unintended behavior, compatibility, architecture, security, maintainability, and whether verification supports the claims. Categorize findings by actual severity, include file:line references and evidence, and distinguish required fixes from non-blocking suggestions or out-of-scope ideas.
+
+State whether the inspected state is ready for the next authorized step. This assessment never authorizes merge, deployment, push, or any external action.
+`,
+})
 ```
-Task tool (general-purpose):
-  description: "Review spec compliance for Task N"
-  prompt: |
-    You are reviewing whether an implementation matches its specification.
 
-    ## What Was Requested
-
-    [FULL TEXT of task requirements]
-
-    ## What Implementer Claims They Built
-
-    [From implementer's report]
-
-    ## CRITICAL: Do Not Trust the Report
-
-    The implementer finished suspiciously quickly. Their report may be incomplete,
-    inaccurate, or optimistic. You MUST verify everything independently.
-
-    **DO NOT:**
-    - Take their word for what they implemented
-    - Trust their claims about completeness
-    - Accept their interpretation of requirements
-
-    **DO:**
-    - Read the actual code they wrote
-    - Compare actual implementation to requirements line by line
-    - Check for missing pieces they claimed to implement
-    - Look for extra features they didn't mention
-
-    ## Your Job
-
-    Read the implementation code and verify:
-
-    **Missing requirements:**
-    - Did they implement everything that was requested?
-    - Are there requirements they skipped or missed?
-    - Did they claim something works but didn't actually implement it?
-
-    **Extra/unneeded work:**
-    - Did they build things that weren't requested?
-    - Did they over-engineer or add unnecessary features?
-    - Did they add "nice to haves" that weren't in spec?
-
-    **Misunderstandings:**
-    - Did they interpret requirements differently than intended?
-    - Did they solve the wrong problem?
-    - Did they implement the right feature but wrong way?
-
-    **Verify by reading code, not by trusting report.**
-
-    Report:
-    - ✅ Spec compliant (if everything matches after code inspection)
-    - ❌ Issues found: [list specifically what's missing or extra, with file:line references]
-```
+If findings lead to fixes, have the assigned worker make them and rerun affected checks. Re-review the changed area when the fix materially affects the finding; do not restart unrelated review work.

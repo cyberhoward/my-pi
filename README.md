@@ -35,7 +35,7 @@ Extensions and skills that are valuable in any context.
 
 | Component | Type | Description |
 |-----------|------|-------------|
-| **subagent/** | Extension | Delegate tasks to specialized subagents with isolated context windows. Tool: `subagent`. Prompts: `/implement`, `/scout-and-plan`, `/implement-and-review` |
+| **subagent/** | Extension | Delegate tasks to specialized subagents with isolated context windows. Tool: `subagent`. Optional workflow presets (`/implement`, `/scout-and-plan`, `/implement-and-review`) are not distributed by this repository. |
 | **toggle/** | Extension | TUI dashboard for enabling/disabling skills, extensions, and agents. Command: `/toggle` (global) or `/toggle project` (per-project) |
 | **memory.ts** | Extension | Persistent memory across sessions. Tools: `memory_save`, `memory_search`, `memory_list`, `memory_remove` |
 | **notifications/** | Extension | System notifications with chime. Tools: `notify`, `ask_user`. Command: `/ping` |
@@ -50,7 +50,7 @@ Tools for coding workflows. Only load these in engineering projects.
 | Component | Type | Description |
 |-----------|------|-------------|
 | **code-ast/** | Extension | TypeScript-aware code intelligence. Tools: `ast_references`, `ast_rename`, `ast_symbols` |
-| **agents/** | Agents | Subagent definitions: `scout` (Sonnet 4.6), `planner` (Opus 4.7), `reviewer` (Opus 4.7), `worker` (Opus 4.7) |
+| **agents/** | Agents | Subagent definitions: `scout` (GPT-5.6 Luna), `planner` and `reviewer` (GPT-6 Astra), `worker` and `remover` (GPT-5.6 Terra), and `tooling-researcher` (GPT-5.6 Sol). |
 | **superpowers/** | Skills | Brainstorming, TDD, systematic debugging, code review, git worktrees, planning, and more — from [superpowers](https://github.com/obra/superpowers) |
 
 ### `personal/` — Non-engineering workflows
@@ -86,7 +86,7 @@ Global `~/.pi/agent/settings.json` only enables the tools you want everywhere �
 }
 ```
 
-Then symlink the global prompt and agents directory so the repo stays the single source of truth:
+Then symlink the global prompt and agents directory so the repo stays the single source of truth. Project agent trust/enablement remains a local trust boundary:
 
 ```bash
 ln -sf  ~/.my-pi/AGENTS.md           ~/.pi/agent/AGENTS.md
@@ -96,6 +96,10 @@ ln -sfn ~/.my-pi/engineering/agents  ~/.pi/agent/agents
 ### Per-project setup
 
 Run `/toggle` inside the project directory. The dashboard picks which skills, extensions, and agents to enable for that project — it writes `.pi/settings.json` (one include per enabled component), `.pi/toggle-config.json` (the disabled list), and an assembled `AGENTS.md` with per-tool docs.
+
+## Subagent routing and isolation
+
+Agent models are configured in agent frontmatter and forwarded explicitly by the extension. An unavailable or unauthorized explicit model has no configured silent fallback to another model. Child context isolation does not isolate the filesystem or Git index: parallel workers need disjoint file ownership, and a shared-worktree coordinator owns Git delivery. Use the `subagent` tool directly; any named workflow presets are separately installed optional conveniences, not repository-provided commands.
 
 ## Environment Variables
 

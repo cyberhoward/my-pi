@@ -1,139 +1,50 @@
 ---
 name: verification-before-completion
-description: Use when about to claim work is complete, fixed, or passing, before committing or creating PRs - requires running verification commands and confirming output before making any success claims; evidence before assertions always
+description: Use before claiming a change is complete, fixed, passing, or ready for delivery
 ---
 
 # Verification Before Completion
 
-## Overview
+## Principle
 
-Claiming work is complete without verification is dishonesty, not efficiency.
+Make claims that match evidence. Choose checks that exercise the changed behavior, read their output, and report both results and limitations. Verification is proportional: a reference-only edit may need a parser or link check, while a behavior change usually needs focused tests.
 
-**Core principle:** Evidence before claims, always.
+## Evidence loop
 
-**Violating the letter of this rule is violating the spirit of this rule.**
+1. Identify the claim: for example, “the retry behavior works” or “these Markdown links resolve.”
+2. Select the smallest meaningful check and run it after the relevant edit.
+3. Read the exit status and relevant output.
+4. Investigate new failures that are related to the change.
+5. Report what the evidence proves, what it does not prove, and known baseline/environment limits.
 
-## The Iron Law
+Do not infer a build result from a linter, a full suite result from one test, or correctness from an agent report. Reuse recent evidence only while relevant files and dependencies are unchanged; broaden or repeat checks when a new change, failure, or risk justifies it.
 
-```
-NO COMPLETION CLAIMS WITHOUT FRESH VERIFICATION EVIDENCE
-```
+## Claim-to-evidence guide
 
-If you haven't run the verification command in this message, you cannot claim it passes.
+| Claim | Suitable evidence | Honest limitation |
+| --- | --- | --- |
+| Focused behavior works | Relevant test or reproducible scenario | Does not imply all tests pass |
+| Build succeeds | Actual build command exits successfully | Does not prove runtime behavior |
+| Documentation/reference links are valid | Markdown/link parser or targeted static check | Does not run application fixtures |
+| Requirements are covered | Diff and concise requirement checklist | Does not replace behavior checks |
+| Delegated work is usable | Inspect diff and run relevant checks | Agent report alone is insufficient |
 
-## The Gate Function
+## Baselines and blockers
 
-```
-BEFORE claiming any status or expressing satisfaction:
+Capture relevant failures before edits where practical. Continue safely past demonstrably unrelated baseline failures, preserving their output. Do not launch an unrelated repair campaign. If a required check cannot run because of the environment, report it as unverified or blocked; do not say “all tests pass.”
 
-1. IDENTIFY: What command proves this claim?
-2. RUN: Execute the FULL command (fresh, complete)
-3. READ: Full output, check exit code, count failures
-4. VERIFY: Does output confirm the claim?
-   - If NO: State actual status with evidence
-   - If YES: State claim WITH evidence
-5. ONLY THEN: Make the claim
+## Reporting examples
 
-Skip any step = lying, not verifying
-```
-
-## Common Failures
-
-| Claim | Requires | Not Sufficient |
-|-------|----------|----------------|
-| Tests pass | Test command output: 0 failures | Previous run, "should pass" |
-| Linter clean | Linter output: 0 errors | Partial check, extrapolation |
-| Build succeeds | Build command: exit 0 | Linter passing, logs look good |
-| Bug fixed | Test original symptom: passes | Code changed, assumed fixed |
-| Regression test works | Red-green cycle verified | Test passes once |
-| Agent completed | VCS diff shows changes | Agent reports "success" |
-| Requirements met | Line-by-line checklist | Tests passing |
-
-## Red Flags - STOP
-
-- Using "should", "probably", "seems to"
-- Expressing satisfaction before verification ("Great!", "Perfect!", "Done!", etc.)
-- About to commit/push/PR without verification
-- Trusting agent success reports
-- Relying on partial verification
-- Thinking "just this once"
-- Tired and wanting work over
-- **ANY wording implying success without having run verification**
-
-## Rationalization Prevention
-
-| Excuse | Reality |
-|--------|---------|
-| "Should work now" | RUN the verification |
-| "I'm confident" | Confidence ≠ evidence |
-| "Just this once" | No exceptions |
-| "Linter passed" | Linter ≠ compiler |
-| "Agent said success" | Verify independently |
-| "I'm tired" | Exhaustion ≠ excuse |
-| "Partial check is enough" | Partial proves nothing |
-| "Different words so rule doesn't apply" | Spirit over letter |
-
-## Key Patterns
-
-**Tests:**
-```
-✅ [Run test command] [See: 34/34 pass] "All tests pass"
-❌ "Should pass now" / "Looks correct"
+```text
+Verified: `npm test -- retry.test.ts` exited 0 (3 tests).
+Also checked: `markdown-link-check docs/guide.md` exited 0.
+Limitation: the repository integration suite was not run; the focused test does not establish it.
 ```
 
-**Regression tests (TDD Red-Green):**
-```
-✅ Write → Run (pass) → Revert fix → Run (MUST FAIL) → Restore → Run (pass)
-❌ "I've written a regression test" (without red-green verification)
-```
-
-**Build:**
-```
-✅ [Run build] [See: exit 0] "Build passes"
-❌ "Linter passed" (linter doesn't check compilation)
+```text
+Baseline: `npm test -- legacy/auth.test.ts` failed before this change with its recorded timeout.
+After change: `npm test -- export.test.ts` exited 0.
+The baseline failure remains unrelated and was not repaired.
 ```
 
-**Requirements:**
-```
-✅ Re-read plan → Create checklist → Verify each → Report gaps or completion
-❌ "Tests pass, phase complete"
-```
-
-**Agent delegation:**
-```
-✅ Agent reports success → Check VCS diff → Verify changes → Report actual state
-❌ Trust agent report
-```
-
-## Why This Matters
-
-From 24 failure memories:
-- your human partner said "I don't believe you" - trust broken
-- Undefined functions shipped - would crash
-- Missing requirements shipped - incomplete features
-- Time wasted on false completion → redirect → rework
-- Violates: "Honesty is a core value. If you lie, you'll be replaced."
-
-## When To Apply
-
-**ALWAYS before:**
-- ANY variation of success/completion claims
-- ANY expression of satisfaction
-- ANY positive statement about work state
-- Committing, PR creation, task completion
-- Moving to next task
-- Delegating to agents
-
-**Rule applies to:**
-- Exact phrases
-- Paraphrases and synonyms
-- Implications of success
-- ANY communication suggesting completion/correctness
-
-## The Bottom Line
-
-**No shortcuts for verification.**
-
-Run the command. Read the output. THEN claim the result.
-
-This is non-negotiable.
+Avoid vague claims such as “should work” or “everything is clean.” State the command and result instead.

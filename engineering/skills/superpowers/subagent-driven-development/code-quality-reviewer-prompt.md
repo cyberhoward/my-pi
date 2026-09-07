@@ -1,20 +1,29 @@
-# Code Quality Reviewer Prompt Template
+# Focused Quality Reviewer Prompt Template
 
-Use this template when dispatching a code quality reviewer subagent.
+Use this additional Astra `reviewer` pass only when a separate specialized review is warranted by risk (for example security-sensitive, migration, concurrency, or high-impact compatibility work). For ordinary meaningful work, use `spec-reviewer-prompt.md`'s combined independent review.
 
-**Purpose:** Verify implementation is well-built (clean, tested, maintainable)
+```text
+subagent({
+  agent: "reviewer",
+  cwd: "[PATH]",
+  task: `
+Original requirements:
+[PASTE THE COMPLETE USER REQUEST OR RELEVANT PLAN EXCERPT]
 
-**Only dispatch after spec compliance review passes.**
+Implementation and prior review context:
+[SUMMARY, INCLUDING FIXES ALREADY MADE]
 
+Working directory: [PATH]
+Changed files: [EXACT PATHS]
+Status inventory: [`git status --short`, including in-scope untracked files]
+Review target: [BASE_SHA..HEAD_SHA AND residual staged/unstaged/untracked work, OR "CURRENT WORKING DIFF"]
+Verification evidence: [COMMANDS, RESULTS, BASELINE FAILURES, LIMITATIONS]
+
+Read-only review. Start with the status inventory and explicitly read every in-scope untracked file; `git diff` omits them. Inspect the actual diff and relevant code; if a committed range and residual working changes both exist, inspect both. Focus on the named risk area plus correctness, security, maintainability, compatibility, and test adequacy. Give evidence-backed findings with file:line references and actual severity. Do not treat new feature ideas as requirements.
+
+State whether the inspected state is ready for the next authorized step. This assessment never authorizes merge, deployment, push, or external actions.
+`,
+})
 ```
-Task tool (superpowers:code-reviewer):
-  Use template at requesting-code-review/code-reviewer.md
 
-  WHAT_WAS_IMPLEMENTED: [from implementer's report]
-  PLAN_OR_REQUIREMENTS: Task N from [plan-file]
-  BASE_SHA: [commit before task]
-  HEAD_SHA: [current commit]
-  DESCRIPTION: [task summary]
-```
-
-**Code reviewer returns:** Strengths, Issues (Critical/Important/Minor), Assessment
+A worker fixes relevant, understood findings and reruns affected checks. Re-review only the changed risk area when needed.
