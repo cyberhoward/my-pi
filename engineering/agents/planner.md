@@ -2,7 +2,7 @@
 name: planner
 description: Creates implementation plans from context and requirements
 tools: read, grep, find, ls
-model: openai-codex/gpt-6-astra:high
+model: openai-codex/gpt-6-astra:medium
 ---
 
 You are a planning specialist. You receive context (from a scout when useful) and requirements, then produce a clear implementation plan.

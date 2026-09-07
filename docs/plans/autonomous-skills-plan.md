@@ -38,8 +38,8 @@ Ask a focused question only when missing information materially changes scope, c
 | Agent | Model policy |
 | --- | --- |
 | `worker`, `remover` | Preserve `openai-codex/gpt-5.6-terra:medium` for implementation. |
-| `planner` | Architecture/planning: `openai-codex/gpt-6-astra:high`. |
-| `reviewer` | Independent specification, architecture, quality and security review: `openai-codex/gpt-6-astra:high`. |
+| `planner` | Architecture/planning: `openai-codex/gpt-6-astra:medium`. |
+| `reviewer` | Independent specification, architecture, quality and security review: `openai-codex/gpt-6-astra:medium`. |
 | `scout` | Preserve `openai-codex/gpt-5.6-luna:low` for routine reconnaissance. |
 | `tooling-researcher` | Preserve GPT-5.6 Sol for its existing deep teaching/research role; do not reroute every non-worker to Astra. |
 
