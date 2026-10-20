@@ -14,7 +14,7 @@ Personal [pi](https://github.com/badlogic/pi-mono) dotfiles — extensions, skil
 │   ├── extensions/        # code-ast (TS-aware code intelligence)
 │   └── skills/            # Superpowers (TDD, debugging, code review, planning, etc.)
 ├── general/               # General-purpose tools (useful everywhere)
-│   ├── extensions/        # subagent, memory, notifications
+│   ├── extensions/        # subagent, memory, notifications, ask-user
 │   └── skills/            # brave-search, browser-tools, defuddle, annas-archive
 ├── libraries/             # External skill collections tracked as submodules
 │   └── skills/            # Official Expo and Mobbin skills
@@ -40,7 +40,8 @@ Extensions and skills that are valuable in any context.
 | **subagent/** | Extension | Delegate tasks to specialized subagents with isolated context windows. Tool: `subagent`. Optional workflow presets (`/implement`, `/scout-and-plan`, `/implement-and-review`) are not distributed by this repository. |
 | **toggle/** | Extension | TUI dashboard for enabling/disabling skills, extensions, and agents. Command: `/toggle` (global) or `/toggle project` (per-project) |
 | **memory.ts** | Extension | Persistent memory across sessions. Tools: `memory_save`, `memory_search`, `memory_list`, `memory_remove` |
-| **notifications/** | Extension | System notifications with chime. Tools: `notify`, `ask_user`. Command: `/ping` |
+| **notifications/** | Extension | System notifications with chime. Tool: `notify`. Command: `/ping` |
+| **ask-user/** | Extension | Interactive `ask_user` decision prompts with searchable options, multi-select, batches, and freeform responses |
 | **brave-search/** | Skill | Web search + page content extraction. Requires `BRAVE_API_KEY` |
 | **browser-tools/** | Skill | Browser automation via Chrome DevTools Protocol. Requires Chrome |
 | **defuddle/** | Skill | Clean article extraction from URLs. Prefer over `WebFetch` for standard web pages. Requires `defuddle` CLI (`npm i -g defuddle`) |
@@ -91,7 +92,8 @@ Global `~/.pi/agent/settings.json` only enables the tools you want everywhere �
     "~/.my-pi/general/extensions/toggle",
     "~/.my-pi/general/extensions/memory.ts",
     "~/.my-pi/general/extensions/notifications",
-    "~/.my-pi/general/extensions/subagent"
+    "~/.my-pi/general/extensions/subagent",
+    "~/.my-pi/general/extensions/ask-user"
   ],
   "skills": [],
   "packages": ["npm:pi-context"]

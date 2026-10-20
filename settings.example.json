@@ -6,7 +6,8 @@
     "~/.my-pi/general/extensions/toggle",
     "~/.my-pi/general/extensions/memory.ts",
     "~/.my-pi/general/extensions/notifications",
-    "~/.my-pi/general/extensions/subagent"
+    "~/.my-pi/general/extensions/subagent",
+    "~/.my-pi/general/extensions/ask-user"
   ],
   "skills": [],
   "packages": [
