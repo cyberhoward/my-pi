@@ -152,7 +152,7 @@ function inventoryFetch(options: { state?: string; busy?: boolean } = {}) {
               { name: "Linux" },
               { name: "X64" },
               { name: "tau-managed" },
-              ...committedConfig.pool.routingLabels.map((name) => ({ name })),
+              ...(options.state === "draining" ? ["tau-draining"] : committedConfig.pool.routingLabels).map((name) => ({ name })),
               { name: `tau-instance-${instance}` },
             ],
           },
@@ -189,6 +189,28 @@ it("scopes explicit ensure slot occupancy to the selected pool", () => {
       "linux-x64-large",
     ),
   ]).toEqual([]);
+});
+it.each(["ready", "draining"])("destroy --all routes %s inventory through safe bulk planning without writes", async state => {
+  const output = io();
+  const base = inventoryFetch({ state });
+  const fetcher = vi.fn(async (input: string | URL, init?: RequestInit) => { expect(init?.method ?? "GET").toBe("GET"); return base(input); });
+  expect(await runCli(["destroy", "--all", "--config", testPolicyPath], env, output, fetcher as typeof fetch)).toBe(0);
+  const result = JSON.parse(output.stdout.mock.calls[0][0]);
+  expect(result.plan.desiredCapacity).toBe(0);
+  expect(result.plan.operations.map((operation: any) => operation.kind)).toEqual([state === "ready" ? "begin-drain" : "probe-drain"]);
+  expect(result.targets[0].server).toContain("tau-mg-123456");
+});
+it("destroy --all is empty and does not bypass confirmation fingerprint fencing", async () => {
+  const output = io();
+  expect(await runCli(["destroy", "--all", "--config", testPolicyPath], env, output, offlineFetch() as typeof fetch)).toBe(0);
+  expect(JSON.parse(output.stdout.mock.calls[0][0]).plan.operations).toEqual([]);
+  const directory = await mkdtemp(join(tmpdir(), "bulk-fingerprint-")); const path = join(directory, "policy.yaml");
+  await writeFile(path, validPolicyYaml(policy => { policy.spec.mutation.enabled = true; policy.spec.coordination.lockPath = join(directory, "controller.lock"); policy.spec.hetzner.serverType = "cx23"; policy.spec.hetzner.location = "fsn1"; policy.spec.hetzner.firewallId = "1"; policy.spec.runner.version = "2.999.0"; policy.spec.runner.archiveSha256 = "a".repeat(64); }));
+  const fetcher = offlineFetch(); const refused = io();
+  expect(await runCli(["destroy", "--all", "--apply", "--config", path], { ...env, RUNNER_MANAGER_ALLOW_MUTATIONS: "1" }, refused, fetcher as typeof fetch, { expectedPlanFingerprint: "changed" })).toBe(3);
+  expect(refused.stderr.mock.calls[0][0]).toContain("plan changed since confirmation");
+  expect(fetcher.mock.calls.every(call => !(call[1] as RequestInit | undefined)?.method || (call[1] as RequestInit).method === "GET")).toBe(true);
+  await rm(directory, { recursive: true, force: true });
 });
 it("destroy first tick plans drain and a later tick plans probe", async () => {
   const instance = "11111111-1111-4111-8111-111111111111";

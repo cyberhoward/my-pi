@@ -9,6 +9,7 @@ import { assertPolicyScope, materializePolicies } from "./policies.js";
 import type { RepositoryBinding } from "./repository.js";
 import type { RunnerSettings } from "./settings.js";
 import type { AutomationDependencies } from "./automation.js";
+import { bulkScope, scopeFingerprint } from "./bulk.js";
 
 const MAX_CONFIG_BYTES = 512 * 1024;
 const MAX_REQUEST_BYTES = 16 * 1024;
@@ -20,7 +21,7 @@ const repository = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 type SerializedSettings = Omit<RunnerSettings, "sourcePath" | "policies"> & { policies?: string[] };
-export type ReaperRequest = { operation: "status" | "ensure" | "reconcile" | "drain" | "destroy" | "startup"; policy?: string; capacity?: number; instance?: string; apply?: boolean; expectedPlanFingerprint?: string };
+export type ReaperRequest = { operation: "status" | "ensure" | "reconcile" | "drain" | "destroy" | "startup"; policy?: string; capacity?: number; instance?: string; all?: boolean; apply?: boolean; expectedPlanFingerprint?: string; expectedScopeFingerprint?: string };
 export type ReaperConfig = { version: 1; binding: { root: "."; repository: string }; settings: SerializedSettings; policies?: Array<{ name: string; yaml: string }> };
 export type ReaperResult = { code: number; text: string };
 type Policy = { name: string; path: string; sourcePath: string };
@@ -154,7 +155,7 @@ export async function parsePrivateEnvironment(path: string): Promise<NodeJS.Proc
 }
 export function parseReaperRequest(value: unknown): ReaperRequest {
   const raw = record(value, "request");
-  exact(raw, ["operation", "policy", "capacity", "instance", "apply", "expectedPlanFingerprint"], "request");
+  exact(raw, ["operation", "policy", "capacity", "instance", "all", "apply", "expectedPlanFingerprint", "expectedScopeFingerprint"], "request");
   if (typeof raw.operation !== "string" || !operations.has(raw.operation)) throw new UsageError("request operation is invalid");
   if (raw.policy !== undefined && (typeof raw.policy !== "string" || !policyName.test(raw.policy))) throw new UsageError("request policy is invalid");
   if (raw.capacity !== undefined) integer(raw.capacity, "request capacity", 0, 3);
@@ -162,13 +163,17 @@ export function parseReaperRequest(value: unknown): ReaperRequest {
   if (raw.apply !== undefined && typeof raw.apply !== "boolean") throw new UsageError("request apply is invalid");
   if (raw.expectedPlanFingerprint !== undefined && (typeof raw.expectedPlanFingerprint !== "string" || !/^[a-f0-9]{64}$/i.test(raw.expectedPlanFingerprint))) throw new UsageError("request expectedPlanFingerprint is invalid");
   const operation = raw.operation as ReaperRequest["operation"];
+  if (raw.all !== undefined && (typeof raw.all !== "boolean" || operation !== "destroy")) throw new UsageError("request all is valid only for destroy");
+  if (raw.all === true && raw.instance !== undefined) throw new UsageError("request all and instance are mutually exclusive");
   if ((operation === "status" || operation === "startup") && (raw.apply !== undefined || raw.capacity !== undefined || raw.instance !== undefined || raw.expectedPlanFingerprint !== undefined)) throw new UsageError("request fields are invalid for operation");
   if (operation === "ensure" && raw.instance !== undefined) throw new UsageError("request instance is invalid for ensure");
-  if ((operation === "drain" || operation === "destroy") && raw.instance === undefined) throw new UsageError("request instance is required");
+  if ((operation === "drain" || operation === "destroy") && raw.instance === undefined && raw.all !== true) throw new UsageError("request instance or destroy all is required");
   if (operation !== "ensure" && raw.capacity !== undefined) throw new UsageError("request capacity is invalid for operation");
   if (raw.apply === true && !mutable.has(operation)) throw new UsageError("request apply is invalid for operation");
   if (raw.apply === true && !raw.expectedPlanFingerprint) throw new SafeRefusal("apply requires expectedPlanFingerprint");
-  return { operation, ...(raw.policy ? { policy: raw.policy } : {}), ...(raw.capacity !== undefined ? { capacity: raw.capacity as number } : {}), ...(raw.instance ? { instance: raw.instance } : {}), ...(raw.apply ? { apply: true } : {}), ...(raw.expectedPlanFingerprint ? { expectedPlanFingerprint: raw.expectedPlanFingerprint } : {}) };
+  if (raw.expectedScopeFingerprint !== undefined && (raw.all !== true || typeof raw.expectedScopeFingerprint !== "string" || !/^[a-f0-9]{64}$/.test(raw.expectedScopeFingerprint))) throw new UsageError("request expectedScopeFingerprint is invalid");
+  if (raw.apply === true && raw.all === true && !raw.expectedScopeFingerprint) throw new SafeRefusal("bulk apply requires expectedScopeFingerprint");
+  return { operation, ...(raw.expectedScopeFingerprint ? { expectedScopeFingerprint: raw.expectedScopeFingerprint as string } : {}), ...(raw.all === true ? { all: true } : {}), ...(raw.policy ? { policy: raw.policy } : {}), ...(raw.capacity !== undefined ? { capacity: raw.capacity as number } : {}), ...(raw.instance ? { instance: raw.instance } : {}), ...(raw.apply ? { apply: true } : {}), ...(raw.expectedPlanFingerprint ? { expectedPlanFingerprint: raw.expectedPlanFingerprint } : {}) };
 }
 async function prewarmState(root: string, now: Date): Promise<Date | undefined> {
   try { const raw = JSON.parse(await readFile(join(root, ".prewarm.json"), "utf8")) as { at?: unknown }; const at = raw.at; if (typeof at !== "number" || !Number.isFinite(at) || at > now.getTime() + 5 * 60_000) return undefined; return new Date(at); } catch { return undefined; }
@@ -193,6 +198,9 @@ function automationHooks(config: ReturnType<typeof parseReaperConfig>, env: Node
 }
 export async function executeReaper(configPath: string, request: ReaperRequest, env: NodeJS.ProcessEnv = process.env, deps: ReaperDependencies = {}): Promise<ReaperResult> {
   const config = await loadReaperConfig(configPath, deps);
+  const scope = bulkScope(config.binding.repository, config.settings);
+  const actualScopeFingerprint = scopeFingerprint(scope);
+  if (request.all && request.apply && request.expectedScopeFingerprint !== actualScopeFingerprint) throw new SafeRefusal("remote scope changed since confirmation; re-preview the installed scope");
   if (request.operation === "startup") {
     if (!config.settings.startOnLoad) return { code: 0, text: JSON.stringify({ command: "startup", skipped: true }) };
     const embedded = config.policies?.length ? await embeddedPolicies(config) : undefined;
@@ -205,15 +213,16 @@ export async function executeReaper(configPath: string, request: ReaperRequest, 
   const materialized = config.policies?.length ? await embeddedPolicies(config) : await (deps.materialize ?? materializePolicies)(config.binding, config.settings);
   try {
     const selected = request.policy ? materialized.policies.filter((item) => item.name === request.policy) : materialized.policies;
-    if (!selected.length) throw new UsageError("selected policy was not found");
+    if (!selected.length && !(request.all && !request.policy)) throw new UsageError("selected policy was not found");
+    if (request.apply && selected.length !== 1) throw new UsageError("apply requires exactly one policy and its confirmed fingerprint");
     const results: ReaperResult[] = [];
     for (const policy of selected) {
-      const input = [request.operation, "--config", policy.path, "--json", ...(request.capacity !== undefined ? ["--capacity", String(request.capacity)] : []), ...(request.instance ? ["--instance", request.instance] : []), ...(request.apply ? ["--apply"] : [])];
+      const input = [request.operation, "--config", policy.path, "--json", ...(request.capacity !== undefined ? ["--capacity", String(request.capacity)] : []), ...(request.instance ? ["--instance", request.instance] : []), ...(request.all ? ["--all"] : []), ...(request.apply ? ["--apply"] : [])];
       let stdout = ""; let stderr = "";
       const code = await (deps.runCli ?? coreRunCli)(input, env, { stdout: (value) => { stdout = value; }, stderr: (value) => { stderr = value; } }, fetch, { expectedPlanFingerprint: request.expectedPlanFingerprint });
       results.push({ code, text: stdout || stderr });
     }
-    return results.length === 1 ? results[0] : { code: results.reduce((highest, item) => Math.max(highest, item.code), 0), text: JSON.stringify(results.map((item, index) => ({ policy: selected[index].name, code: item.code, output: item.text }))) };
+    return results.length === 1 && !request.all ? results[0] : { code: results.reduce((highest, item) => Math.max(highest, item.code), 0), text: JSON.stringify(results.map((item, index) => ({ policy: selected[index].name, code: item.code, output: item.text, ...(request.all ? { scope, scopeFingerprint: actualScopeFingerprint } : {}) }))) };
   } finally { await materialized.cleanup(); }
 }
 export async function serveReaper(configPath: string, deps: ReaperDependencies = {}, lifecycle: { on?: (event: "SIGTERM" | "SIGINT", listener: () => void) => unknown; off?: (event: "SIGTERM" | "SIGINT", listener: () => void) => unknown; setInterval?: typeof setInterval; clearInterval?: typeof clearInterval } = process): Promise<() => Promise<void>> {

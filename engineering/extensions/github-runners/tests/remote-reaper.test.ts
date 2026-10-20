@@ -37,6 +37,14 @@ async function fakeCommands(root: string): Promise<string> {
 }
 
 describe("remote reaper installer", () => {
+  it("transports bulk destroy as structured data and rejects conflicting selectors", async () => {
+    const fake = transport();
+    const installation = { sshTarget: "controller", installationId: "a".repeat(16), environmentFile: "/private.env" };
+    await requestReaper(installation, { operation: "destroy", all: true }, { transport: fake.run });
+    expect(JSON.parse(fake.calls[0].stdin!.toString())).toEqual({ operation: "destroy", all: true });
+    await expect(requestReaper(installation, { operation: "destroy", all: true, instance: "11111111-1111-4111-8111-111111111111" }, { transport: fake.run })).rejects.toThrow("mutually exclusive");
+    expect(fake.calls).toHaveLength(1);
+  });
   it("uses a deterministic safe scope identifier", () => {
     expect(reaperInstallationId(binding, settings)).toMatch(/^[a-f0-9]{16}$/);
     expect(reaperInstallationId(binding, settings)).toBe(reaperInstallationId(binding, settings));

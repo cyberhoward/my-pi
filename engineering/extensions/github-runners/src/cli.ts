@@ -15,6 +15,7 @@ import { validServerIdentity } from "./inventory.js";
 import { FilesystemMutationLock } from "./lock.js";
 import { observe } from "./manager.js";
 import { planReconcile } from "./policy.js";
+import { planDestroyAll } from "./destroy.js";
 import type { KnownCost } from "./ports.js";
 import { Redactor } from "./redaction.js";
 import {
@@ -28,7 +29,7 @@ import {
 } from "./types.js";
 
 const usage =
-  "Usage: runner-manager <list|status|ensure|reconcile|drain|destroy> [--apply] [--json] [--capacity N] [--instance UUID]";
+  "Usage: runner-manager <list|status|ensure|reconcile|drain|destroy> [--apply] [--json] [--capacity N] [--instance UUID|--all]";
 export function orderOperations(operations: PlanOperation[]): PlanOperation[] {
   const rank = (operation: PlanOperation) =>
     operation.kind === "repair-protection"
@@ -190,7 +191,8 @@ export async function runCli(
           ],
         };
       }
-      if (args.command === "destroy") {
+      if (args.command === "destroy" && args.all) plan = planDestroyAll(state.snapshot, config, new Date());
+      if (args.command === "destroy" && !args.all) {
         const target = state.snapshot.servers.find(
           (server) => server.labels["tau-instance"] === args.instance,
         );
@@ -246,6 +248,7 @@ export async function runCli(
         command: args.command,
         applied,
         plan,
+        ...(args.all ? { targets: plan.operations.map(({ instance }) => ({ instance, server: state.snapshot.servers.find(server => server.labels["tau-instance"] === instance)?.name, runner: state.snapshot.runners.find(runner => runner.labels.includes(`tau-instance-${instance}`))?.name })) } : {}),
         ...(preflight ? { preflight } : {}),
       };
     };

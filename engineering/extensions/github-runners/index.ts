@@ -10,22 +10,25 @@ import { materializePolicies } from "./policies.js";
 import { RunnerAutomation } from "./automation.js";
 import { loadPolicy } from "./src/config.js";
 import { planFingerprint, runCli } from "./src/cli.js";
+import { applyBulkPlans, bulkPreviewText, bulkScope, decodeRemoteBulk, prepareBulkPlans, type BulkResult } from "./bulk.js";
 import { installReaper, reaperInstallationId, reaperStatus, requestReaper, uninstallReaper, type ReaperRequest } from "./remote-reaper.js";
 
-const usage = "Usage: /runners [status|refresh|ensure|reconcile|drain|destroy|reaper install|reaper status|reaper uninstall] [--policy <path-or-selected-policy>] [--capacity N] [--instance UUID] [--apply]";
+const usage = "Usage: /runners [status|refresh|ensure|reconcile|drain|destroy|reaper install|reaper status|reaper uninstall] [--policy <path-or-selected-policy>] [--capacity N] [--instance UUID|--all] [--apply]";
 const operations = new Set(["status", "refresh", "ensure", "reconcile", "drain", "destroy"]);
-type Parsed = { operation: string; policy?: string; capacity?: string; instance?: string; apply: boolean };
+type Parsed = { operation: string; policy?: string; capacity?: string; instance?: string; all: boolean; apply: boolean };
 type CorePlan = { warnings?: string[]; operations?: unknown[] };
 type CoreOutput = { plan?: CorePlan };
+type PolicySnapshot = { name: string; path: string; cleanup: () => Promise<void>; env: NodeJS.ProcessEnv };
 
 export function parseRunnerCommand(input: string): Parsed {
   const argv = input.trim().split(/\s+/).filter(Boolean);
   const operation = argv.shift() ?? "";
   if (!operations.has(operation)) throw new Error(usage);
-  const parsed: Parsed = { operation, apply: false };
+  const parsed: Parsed = { operation, all: false, apply: false };
   while (argv.length) {
     const flag = argv.shift();
     if (flag === "--apply") { if (parsed.apply) throw new Error(usage); parsed.apply = true; continue; }
+    if (flag === "--all") { if (parsed.all) throw new Error(usage); parsed.all = true; continue; }
     if (flag === "--policy" || flag === "--capacity" || flag === "--instance") {
       const value = argv.shift(); if (!value) throw new Error(usage);
       if (flag === "--policy") parsed.policy = value;
@@ -35,17 +38,19 @@ export function parseRunnerCommand(input: string): Parsed {
     }
     throw new Error(usage);
   }
-  if (parsed.operation === "refresh" && (parsed.apply || parsed.policy || parsed.capacity || parsed.instance)) throw new Error(usage);
+  if (parsed.operation === "refresh" && (parsed.apply || parsed.policy || parsed.capacity || parsed.instance || parsed.all)) throw new Error(usage);
   if (parsed.operation !== "ensure" && parsed.capacity) throw new Error(usage);
   if (!["drain", "destroy"].includes(parsed.operation) && parsed.instance) throw new Error(usage);
-  if (["drain", "destroy"].includes(parsed.operation) && !parsed.instance) throw new Error("--instance is required\n" + usage);
+  if (parsed.all && parsed.operation !== "destroy") throw new Error("--all is only valid for destroy\n" + usage);
+  if (parsed.all && parsed.instance) throw new Error("--all and --instance are mutually exclusive\n" + usage);
+  if (["drain", "destroy"].includes(parsed.operation) && !parsed.instance && !parsed.all) throw new Error("--instance is required\n" + usage);
   if (["status", "refresh"].includes(parsed.operation) && parsed.apply) throw new Error("--apply is only valid for management operations");
   return parsed;
 }
 function output(ctx: ExtensionCommandContext, text: string, type: "info" | "warning" | "error" = "info"): void { if (ctx.hasUI) ctx.ui.notify(text, type); else console.log(text); }
 function parseOutput(text: string): CoreOutput | undefined { for (const line of text.split(/\r?\n/)) { try { return JSON.parse(line) as CoreOutput; } catch {} } return undefined; }
 function planFingerprintFrom(text: string): string | undefined { const plan = parseOutput(text)?.plan; return plan && !plan.warnings?.length && Array.isArray(plan.operations) ? planFingerprint(plan as Parameters<typeof planFingerprint>[0]) : undefined; }
-async function choose(ctx: ExtensionCommandContext): Promise<string | undefined> { return ctx.hasUI ? ctx.ui.select("GitHub runners", ["status", "refresh", "ensure", "reconcile", "drain", "destroy", "settings", "reaper install", "reaper status", "reaper uninstall"]) : undefined; }
+async function choose(ctx: ExtensionCommandContext): Promise<string | undefined> { return ctx.hasUI ? ctx.ui.select("GitHub runners", ["status", "refresh", "ensure", "reconcile", "drain", "destroy", "destroy --all", "settings", "reaper install", "reaper status", "reaper uninstall"]) : undefined; }
 async function ghToken(cwd: string): Promise<string | undefined> { try { return (await nodeCommandRunner("gh", ["auth", "token", "--hostname", "github.com"], { cwd, timeoutMs: 5_000, maxBuffer: 16 * 1024 })).stdout.trim() || undefined; } catch { return undefined; } }
 export async function snapshotPolicy(path: string): Promise<{ path: string; cleanup: () => Promise<void> }> { const bytes = await readFile(path); if (bytes.byteLength > 256 * 1024) throw new Error("policy exceeds 256 KiB limit"); const directory = await mkdtemp(join(tmpdir(), "pi-runner-policy-")); const snapshot = join(directory, "policy.yaml"); await writeFile(snapshot, bytes, { mode: 0o600 }); return { path: snapshot, cleanup: () => rm(directory, { recursive: true, force: true }) }; }
 export function assertPolicyRepository(repository: string, policyRepository: string): void { if (!sameRepository(policyRepository, repository)) throw new Error("policy repository does not match the active GitHub origin"); }
@@ -67,14 +72,26 @@ async function selectPolicy(ctx: ExtensionCommandContext, binding: Awaited<Retur
 }
 async function confirmApply(ctx: ExtensionCommandContext, binding: { repository: string }, operation: string, target: string, detail: string): Promise<boolean> {
   if (!ctx.hasUI || ctx.mode !== "tui") throw new Error("--apply requires an interactive TUI session");
-  if (!await ctx.ui.confirm("Apply runner plan?", `Repository: ${binding.repository}\nOperation: ${operation}\nTarget: ${target}\n\n${detail}`)) return false;
+  if (!await ctx.ui.confirm("Apply runner plan?", `Active repository: ${binding.repository}\nOperation: ${operation}\nTarget: ${target}\n\n${detail}`)) return false;
   return ctx.ui.confirm("Single controller assurance", "Stop any other runner controller now. Confirm that you are the sole writer for this repository and pool.");
 }
 async function invokeRemote(ctx: ExtensionCommandContext, binding: NonNullable<Awaited<ReturnType<typeof detectRepository>>>, parsed: Parsed, settings: RunnerSettings): Promise<void> {
   const installation = settings.reaper!;
   if (parsed.operation === "refresh") throw new Error("refresh is local read monitoring; use status for the installed reaper");
-  const request: ReaperRequest = { operation: parsed.operation as ReaperRequest["operation"], policy: parsed.policy, capacity: parsed.capacity === undefined ? undefined : Number(parsed.capacity), instance: parsed.instance, apply: false };
+  const request: ReaperRequest = { operation: parsed.operation as ReaperRequest["operation"], policy: parsed.policy, capacity: parsed.capacity === undefined ? undefined : Number(parsed.capacity), instance: parsed.instance, ...(parsed.all ? { all: true } : {}), apply: false };
   const dry = await requestReaper(installation, request);
+  if (parsed.all) {
+    const results = decodeRemoteBulk(dry, parsed.policy);
+    const detail = `${results[0]?.scope ?? "No remote runner policies are configured."}\n\n${bulkPreviewText(results)}`;
+    if (!parsed.apply) { output(ctx, detail); return; }
+    const plans = prepareBulkPlans(results);
+    const applied = await applyBulkPlans(plans, () => confirmApply(ctx, binding, "destroy --all", "ALL managed runners in the displayed scope", detail), async plan => {
+      const result = await requestReaper(installation, { operation: "destroy", all: true, policy: plan.policy, apply: true, expectedPlanFingerprint: plan.fingerprint, expectedScopeFingerprint: plan.scopeFingerprint });
+      return { policy: plan.policy, code: result.code, output: result.text };
+    });
+    reportBulk(ctx, applied);
+    return;
+  }
   if (!parsed.apply) { output(ctx, dry.text || `remote reaper exited ${dry.code}`, dry.code ? "warning" : "info"); return; }
   const expectedPlanFingerprint = planFingerprintFrom(dry.text);
   if (dry.code || !expectedPlanFingerprint) throw new Error(dry.text || "remote reaper did not return a complete warning-free plan");
@@ -82,11 +99,53 @@ async function invokeRemote(ctx: ExtensionCommandContext, binding: NonNullable<A
   const applied = await requestReaper(installation, { ...request, apply: true, expectedPlanFingerprint });
   output(ctx, applied.text || `remote reaper exited ${applied.code}`, applied.code ? "warning" : "info");
 }
+function reportBulk(ctx: ExtensionCommandContext, results: BulkResult[]): void {
+  if (!results.length) return;
+  const failed = results.some(result => result.code !== 0);
+  output(ctx, `${bulkPreviewText(results)}\n\n${failed ? "Stopped on a partial failure. Re-preview before retrying; earlier successful operations were not rolled back." : "Safe destroy tick completed. Runners may now be draining; rerun after the configured quiescence period to finish deletion. Automation can recreate deleted runners."}`, failed ? "warning" : "info");
+}
+async function invokeBulkCore(ctx: ExtensionCommandContext, parsed: Parsed, binding: NonNullable<Awaited<ReturnType<typeof detectRepository>>>, settings: RunnerSettings): Promise<void> {
+  const materialized = await materializePolicies(binding, settings);
+  const snapshots: PolicySnapshot[] = [];
+  try {
+    const policies = parsed.policy ? materialized.policies.filter(item => item.name === parsed.policy || item.path === parsed.policy || item.sourcePath.endsWith("/" + parsed.policy)) : materialized.policies;
+    if (parsed.policy && policies.length !== 1) throw new Error("select one configured policy with --policy");
+    if (!policies.length) { output(ctx, "No runner policies are configured; no resources were changed."); return; }
+    for (const selected of policies) {
+      const snapshot = await snapshotPolicy(selected.path);
+      const entry: PolicySnapshot = { name: selected.name, ...snapshot, env: { ...process.env } };
+      snapshots.push(entry);
+      const policy = await loadPolicy(snapshot.path);
+      assertBindingAllowed(binding, settings, policy.config.repository);
+      if (!entry.env[policy.credentials.githubTokenEnv]) {
+        const token = await ghToken(binding.root);
+        if (!token) throw new Error("GitHub credentials are unavailable for the complete bulk preview");
+        entry.env[policy.credentials.githubTokenEnv] = token;
+      }
+    }
+    const run = async (policy: PolicySnapshot, fingerprint?: string): Promise<BulkResult> => {
+      const lines: string[] = [];
+      const code = await runCli(["destroy", "--all", "--config", policy.path, ...(fingerprint ? ["--apply"] : [])], policy.env, { stdout: text => lines.push(text), stderr: text => lines.push(text) }, undefined, { expectedPlanFingerprint: fingerprint });
+      return { policy: policy.name, code, output: lines.join("\n") };
+    };
+    const results: BulkResult[] = [];
+    for (const snapshot of snapshots) results.push(await run(snapshot));
+    const detail = `${bulkScope(binding.repository, settings)}\n\n${bulkPreviewText(results)}`;
+    if (!parsed.apply) { output(ctx, detail, results.some(result => result.code !== 0) ? "warning" : "info"); return; }
+    const plans = prepareBulkPlans(results);
+    const applied = await applyBulkPlans(plans, () => confirmApply(ctx, binding, "destroy --all", "ALL managed runners in the displayed scope", detail), plan => run(snapshots.find(snapshot => snapshot.name === plan.policy)!, plan.fingerprint));
+    reportBulk(ctx, applied);
+  } finally {
+    for (const snapshot of snapshots) await snapshot.cleanup();
+    await materialized.cleanup();
+  }
+}
 async function invokeCore(ctx: ExtensionCommandContext, parsed: Parsed, monitor: RunnerMonitor | undefined): Promise<void> {
   const binding = await detectRepository(ctx.cwd); if (!binding) throw new Error("active directory must have one exact github.com origin");
   const settings = await loadSettings(binding.root);
   if (parsed.operation === "refresh") { const state = await readMonitorState(binding.repository, undefined, undefined, settings.mode === "global" ? settings.organization?.name : undefined); output(ctx, state.kind === "ok" ? `${footerText(state)}; ${state.total - state.online} offline` : "GitHub runner status is unavailable", state.kind === "ok" ? "info" : "warning"); monitor?.refreshNow(); return; }
   if (settings.reaper) { await invokeRemote(ctx, binding, parsed, settings); return; }
+  if (parsed.all) { await invokeBulkCore(ctx, parsed, binding, settings); return; }
   if (parsed.operation === "status" && !parsed.policy) { const state = await readMonitorState(binding.repository, undefined, undefined, settings.mode === "global" ? settings.organization?.name : undefined); output(ctx, state.kind === "ok" ? `${footerText(state)}; ${state.total - state.online} offline` : "GitHub runner status is unavailable", state.kind === "ok" ? "info" : "warning"); monitor?.refreshNow(); return; }
   const selected = await selectPolicy(ctx, binding, parsed.policy); const snapshot = await snapshotPolicy(selected.path);
   try {

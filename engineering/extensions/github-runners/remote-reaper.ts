@@ -6,10 +6,10 @@ import { fileURLToPath } from "node:url";
 import type { RepositoryBinding } from "./repository.js";
 import { reaperInstallationId as canonicalReaperInstallationId, type RunnerSettings } from "./settings.js";
 import { materializePolicies } from "./policies.js";
-import { parseReaperConfig } from "./reaper-runtime.js";
+import { parseReaperConfig, parseReaperRequest } from "./reaper-runtime.js";
 
 export type ReaperInstallation = { sshTarget: string; installationId: string; environmentFile: string };
-export interface ReaperRequest { operation: "status" | "ensure" | "reconcile" | "drain" | "destroy" | "startup"; policy?: string; capacity?: number; instance?: string; apply?: boolean; expectedPlanFingerprint?: string }
+export interface ReaperRequest { operation: "status" | "ensure" | "reconcile" | "drain" | "destroy" | "startup"; policy?: string; capacity?: number; instance?: string; all?: boolean; apply?: boolean; expectedPlanFingerprint?: string; expectedScopeFingerprint?: string }
 export interface ReaperTransportResult { code: number; stdout: string; stderr: string }
 export interface ReaperTransport { (input: { sshTarget: string; command: string; stdin?: Buffer; timeoutMs: number; maxOutputBytes: number }): Promise<ReaperTransportResult> }
 export interface ReaperDependencies { transport?: ReaperTransport; pack?: (config: Buffer) => Promise<Buffer>; timeoutMs?: number }
@@ -224,7 +224,7 @@ export async function reaperStatus(installation: ReaperInstallation, deps: Reape
 }
 function validRequest(request: ReaperRequest): void { if (!request || !["status", "ensure", "reconcile", "drain", "destroy", "startup"].includes(request.operation) || (request.policy !== undefined && (!/^[A-Za-z0-9_.-]{1,64}$/.test(request.policy))) || (request.capacity !== undefined && (!Number.isInteger(request.capacity) || request.capacity < 0 || request.capacity > 100)) || (request.instance !== undefined && !/^[A-Za-z0-9_.-]{1,128}$/.test(request.instance)) || (request.apply !== undefined && typeof request.apply !== "boolean") || (request.expectedPlanFingerprint !== undefined && !/^[A-Za-z0-9_-]{8,256}$/.test(request.expectedPlanFingerprint))) throw new Error("invalid reaper request"); }
 export async function requestReaper(installation: ReaperInstallation, request: ReaperRequest, deps: ReaperDependencies = {}): Promise<{ code: number; text: string }> {
-  checked(installation); validRequest(request); const input = Buffer.from(JSON.stringify(request)); if (input.byteLength > 64 * 1024) throw new Error("reaper request exceeds 64 KiB"); const transport = deps.transport ?? sshTransport;
+  checked(installation); validRequest(request); parseReaperRequest(request); const input = Buffer.from(JSON.stringify(request)); if (input.byteLength > 64 * 1024) throw new Error("reaper request exceeds 64 KiB"); const transport = deps.transport ?? sshTransport;
   const script = `${ownedScript}\nexec 9>"$parent/.\${id}.install.lock"\nflock -s 9\nexec node "$base/dist/reaper-cli.js" request --config "$base/config.json" --env-file "$env"`;
   const result = await run(transport, installation.sshTarget, script, [installation.installationId, installation.environmentFile], input, deps.timeoutMs ?? timeoutMs); return { code: result.code, text: resultText(result) };
 }

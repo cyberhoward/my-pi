@@ -2,7 +2,7 @@
 
 Pi extension for observing and, only after explicit opt-in, managing small Hetzner Cloud pools of **Linux x64 GitHub Actions self-hosted runners**. It was adapted from `my-gratitude/tools/runner-manager` at `1273564a6d326e0e8c1aea6130112bf1c627632e`.
 
-> Development has not validated live infrastructure. Treat a first deployment as an operator-controlled production change; no macOS or iOS runners are supported, and each pool size is limited to 3.
+> Provisioning and remote systemd deployment have not been validated against live infrastructure. Safe drain/deletion has been exercised on an existing legacy pool. Treat a first deployment as an operator-controlled infrastructure change; no macOS or iOS runners are supported, and each pool size is limited to 3.
 
 ## Install and enable
 
@@ -27,11 +27,16 @@ The extension operates only when the current directory has one exact `github.com
 /runners reconcile [--policy NAME_OR_PATH] [--apply]
 /runners drain --instance UUID [--policy NAME_OR_PATH] [--apply]
 /runners destroy --instance UUID [--policy NAME_OR_PATH] [--apply]
+/runners destroy --all [--policy NAME_OR_PATH] [--apply]
 ```
 
-`/runners` opens the command/settings menu in the TUI. `status` observes the configured policy/pool; without a policy it reports the GitHub runner inventory. `refresh` is local read-only monitoring. `ensure` is a bounded desired-capacity request, `reconcile` follows the policy, `drain` starts safe draining of one owned instance, and `destroy` first drains then later probes/removes it when safe. `--instance` is required for `drain` and `destroy`; `--capacity` is only for `ensure`; `--policy` selects a named/materialized policy.
+`/runners` opens the command/settings menu in the TUI. `status` observes the configured policy/pool; without a policy it reports the GitHub runner inventory. `refresh` is local read-only monitoring. `ensure` is a bounded desired-capacity request, `reconcile` follows the policy, `drain` starts safe draining of one owned instance, and `destroy` first drains then later probes/removes it when safe. `--instance` is required for `drain`; `destroy` requires either `--instance` or `--all`, never both. `--capacity` is only for `ensure`; `--policy` selects a named/materialized policy.
 
-Management is plan-first. `--apply` is allowed only in an interactive TUI, requires a warning-free unchanged plan, two confirmations (including sole-controller confirmation), policy `mutation.enabled: true`, and `RUNNER_MANAGER_ALLOW_MUTATIONS=1`. Without all of them it does not mutate. If more than one policy is configured, CLI apply operations require an explicit `--policy` selection.
+Management is plan-first. `--apply` is allowed only in an interactive TUI, requires a warning-free unchanged plan, two confirmations (including sole-controller confirmation), policy `mutation.enabled: true`, and `RUNNER_MANAGER_ALLOW_MUTATIONS=1`. Without all of them it does not mutate. Single-instance apply operations require an explicit `--policy` when multiple policies exist.
+
+`destroy --all` previews every configured policy for the active repository, or only the policy selected with `--policy`. In shared-organization mode it affects the configured shared pool and its allowlisted repositories, which are displayed before confirmation. It never means all servers in a Hetzner project. Only conclusively owned instances and stale offline registrations are eligible; ownership ambiguity refuses teardown.
+
+Use `/runners destroy --all` to preview, then `/runners destroy --all --apply` to confirm the complete set. Each policy apply is bound to its own preview fingerprint. Remote confirmation displays the installed controller’s authoritative scope, not potentially newer local settings; a scope change before apply refuses mutation. This is a safe destroy **tick**, not a force-delete: the first tick drains live runners; retry after the configured quiescence interval (normally 65 seconds) to finish deletion once they are idle. Busy runners are not deleted. Partial failures stop later policies without rolling back earlier operations. Automation is not disabled by this command and may recreate runners; stop any other controller first. Update an installed remote reaper before using the new flag.
 
 The footer is `busy/online runners` (for example, `1/2 runners`), not a capacity guarantee. `/runners status` additionally reports `total - online` as offline. Failed/unknown monitoring displays `?/? runners` and status says it is unavailable.
 
@@ -119,7 +124,7 @@ The remote snapshot is authoritative. Repeating install for the same host and sc
 
 ## Limits and provenance
 
-This extension has no live-cloud validation in development. It supports Linux x64 only, up to three runners per pool, and relies on exact GitHub/Hetzner ownership evidence before destructive work. It is adapted from the source revision named above, rather than a promise of compatibility with the tutorial system below.
+Live verification covers safe drain/deletion of existing legacy runners, not provisioning or remote-controller deployment. It supports Linux x64 only, up to three runners per pool, and relies on exact GitHub/Hetzner ownership evidence before destructive work. It is adapted from the source revision named above, rather than a promise of compatibility with the tutorial system below.
 
 ## Tutorial comparison
 

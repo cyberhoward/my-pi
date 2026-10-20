@@ -30,6 +30,23 @@ describe("reaper runtime", () => {
     expect(result.code).toBe(0);
     expect(runCli.mock.calls[0][0]).toEqual(["ensure", "--config", "/trusted/policy.yaml", "--json", "--capacity", "1", "--apply"]);
   });
+  it("previews named bulk policies and applies only one independently confirmed policy", async () => {
+    const { path } = await configFile(config);
+    const runCli = vi.fn(async (_args: string[], _env: NodeJS.ProcessEnv, io: { stdout(value: string): void }) => { io.stdout(JSON.stringify({ plan: { desiredCapacity: 0, operations: [], warnings: [] } })); return 0; });
+    const deps = { runCli: runCli as never, materialize: async () => ({ policies: ["small", "large"].map(name => ({ name, path: `/trusted/${name}.yaml`, sourcePath: `/trusted/${name}.yaml` })), cleanup: async () => undefined }) };
+    const preview = await executeReaper(path, parseReaperRequest({ operation: "destroy", all: true }), {}, deps);
+    const expectedScopeFingerprint = JSON.parse(preview.text)[0].scopeFingerprint;
+    expect(JSON.parse(preview.text)[0].scope).toBe("Repository: owner/repo");
+    expect(JSON.parse(preview.text).map((item: any) => item.policy)).toEqual(["small", "large"]);
+    expect(runCli.mock.calls.every(([args]) => args.includes("--all") && !args.includes("--apply"))).toBe(true);
+    runCli.mockClear();
+    await expect(executeReaper(path, parseReaperRequest({ operation: "destroy", all: true, apply: true, expectedPlanFingerprint: "a".repeat(64), expectedScopeFingerprint }), {}, deps)).rejects.toThrow("exactly one policy");
+    expect(runCli).not.toHaveBeenCalled();
+    await expect(executeReaper(path, parseReaperRequest({ operation: "destroy", all: true, policy: "small", apply: true, expectedPlanFingerprint: "a".repeat(64), expectedScopeFingerprint: "b".repeat(64) }), {}, deps)).rejects.toThrow("remote scope changed");
+    expect(runCli).not.toHaveBeenCalled();
+    await executeReaper(path, parseReaperRequest({ operation: "destroy", all: true, policy: "small", apply: true, expectedPlanFingerprint: "a".repeat(64), expectedScopeFingerprint }), {}, deps);
+    expect(runCli.mock.calls[0][0]).toEqual(["destroy", "--config", "/trusted/small.yaml", "--json", "--all", "--apply"]);
+  });
   it("reads only private literal environment files without leaking values", async () => {
     const directory = await mkdtemp(join(tmpdir(), "reaper-env-"));
     const file = join(directory, "env");
