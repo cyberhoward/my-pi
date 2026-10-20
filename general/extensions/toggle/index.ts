@@ -2,7 +2,12 @@ import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { homedir } from "os";
 import { resolve } from "path";
 import { discoverComponents, buildGroupTree } from "./discovery.ts";
-import { loadConfig, saveConfig, toggleItem } from "./config.ts";
+import {
+  loadConfig,
+  registerDiscoveredComponents,
+  saveConfig,
+  toggleItem,
+} from "./config.ts";
 import { applyToggleConfig } from "./settings-writer.ts";
 import { assembleProjectAgentsMd } from "./assembler.ts";
 import { buildSettingItems, createToggleUI } from "./ui.ts";
@@ -41,7 +46,11 @@ export default function toggleExtension(pi: ExtensionAPI) {
       // Initial sync: materialize the current project config into settings.json
       // and AGENTS.md so opening `/toggle` always brings these files in line
       // with the saved toggle-config.json, even without any user toggles.
-      const initialConfig = await loadConfig("project", cwd);
+      const loadedConfig = await loadConfig("project", cwd);
+      const initialConfig = registerDiscoveredComponents(loadedConfig, allItems);
+      if (JSON.stringify(initialConfig) !== JSON.stringify(loadedConfig)) {
+        await saveConfig(initialConfig, "project", cwd);
+      }
       const settingsChanged = await applyToggleConfig(initialConfig, allItems, "project", cwd);
       const agentsMdChanged = await assembleProjectAgentsMd(initialConfig, allItems, cwd);
 
