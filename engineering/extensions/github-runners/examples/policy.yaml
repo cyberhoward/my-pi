@@ -1,0 +1,58 @@
+apiVersion: runner-manager.pi.dev/v1alpha1
+kind: RunnerInfrastructurePolicy
+metadata:
+  name: github-runners
+spec:
+  mutation:
+    enabled: false
+  credentials:
+    hcloudTokenEnv: HCLOUD_TOKEN
+    githubTokenEnv: GITHUB_TOKEN
+  coordination:
+    lockPath: /var/tmp/github-runners.lock
+  github:
+    repository: owner/repository
+  pool:
+    name: linux-x64
+    selectedTier: economical
+    maxSize: 1
+    costs:
+      maxKnownHourlyPoolEur: 1
+      maxKnownEligibilityEur: 10
+    timing:
+      scaleUpDelaySeconds: 45
+      idleGraceSeconds: 900
+      bootstrapGraceSeconds: 900
+      drainQuiescenceSeconds: 65
+      drainProbeSeconds: 5
+      maximumLifetimeSeconds: 14400
+  runner:
+    architecture: x64
+    version: null
+    archiveSha256: null
+  hetzner:
+    serverType: null
+    location: null
+    image: ubuntu-24.04
+    firewallId: null
+    networkId: null
+    sshKeyIds: []
+    publicNetwork:
+      ipv4: true
+      ipv6: true
+  inventory:
+    managedLabelValue: pi-github-runners-v1
+    classificationLabels:
+      workload: github-actions
+  tierCatalog:
+    economical:
+      family: CX
+      cpuClass: shared
+      performanceClass: cost-optimized
+      architecture: x86
+      serverTypes:
+        - cx23
+      githubRoutingLabels:
+        - self-hosted-linux-x64
+      sources:
+        - https://docs.hetzner.com/cloud/general-information/faq/

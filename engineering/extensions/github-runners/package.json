@@ -1,0 +1,36 @@
+{
+  "name": "@my-pi/github-runners",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "github-runners": "dist/src/cli.js"
+  },
+  "pi": {
+    "extensions": ["./dist/index.js"]
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "proper-lockfile": "4.1.2",
+    "yaml": "2.9.0",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "@types/node": "25.5.0",
+    "@types/proper-lockfile": "4.1.4",
+    "typescript": "6.0.2",
+    "vitest": "4.1.2"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "peerDependenciesMeta": {
+    "@earendil-works/pi-coding-agent": {
+      "optional": true
+    }
+  }
+}
