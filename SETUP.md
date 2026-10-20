@@ -2,7 +2,31 @@
 
 Follow these steps to set up pi with this configuration.
 
-## 1. Settings
+## 1. Repository submodules
+
+Expo and Mobbin skills are tracked as Git submodules. Initialize them after cloning the repository:
+
+```bash
+cd ~/.my-pi
+git submodule update --init --recursive
+```
+
+If cloning from scratch, initialize them in the same command:
+
+```bash
+git clone --recurse-submodules git@github.com:CyberHoward/my-pi.git ~/.my-pi
+```
+
+Update the skill submodules later with:
+
+```bash
+cd ~/.my-pi
+git submodule update --remote --merge libraries/skills/expo libraries/skills/mobbin
+git add .gitmodules libraries/skills/expo libraries/skills/mobbin
+git commit -m "Update Expo and Mobbin skills"
+```
+
+## 2. Settings
 
 Copy settings once, then symlink the global prompt so edits in the repo flow through automatically:
 
@@ -14,7 +38,7 @@ ln -sf ~/.my-pi/AGENTS.md ~/.pi/agent/AGENTS.md               # symlink — no d
 
 If `~/.pi/agent/settings.json` already exists, merge in the `extensions` and `skills` arrays rather than overwriting.
 
-## 2. Agents
+## 3. Agents
 
 Symlink the whole agents directory so adding a new agent to the repo makes it immediately available to pi:
 
@@ -24,7 +48,7 @@ Symlink the whole agents directory so adding a new agent to the repo makes it im
 ln -sfn ~/.my-pi/engineering/agents ~/.pi/agent/agents
 ```
 
-## 3. Skills
+## 4. Skills
 
 Install dependencies for the bundled skills:
 
@@ -43,7 +67,7 @@ npm install -g defuddle
 npm install -g obsidian-cli
 ```
 
-## 4. Extension Dependencies
+## 5. Extension Dependencies
 
 Install npm dependencies for the code-ast extension:
 
@@ -51,7 +75,7 @@ Install npm dependencies for the code-ast extension:
 cd ~/.my-pi/engineering/extensions/code-ast && npm install
 ```
 
-## 5. Environment Variables
+## 6. Environment Variables
 
 Check if `BRAVE_API_KEY` is set:
 
@@ -67,7 +91,7 @@ export BRAVE_API_KEY="<key>"
 
 Get a free Brave Search API key at https://api-dashboard.search.brave.com/register
 
-## 6. Packages
+## 7. Packages
 
 Install npm packages listed in settings.json:
 
@@ -75,7 +99,7 @@ Install npm packages listed in settings.json:
 pi install npm:pi-context
 ```
 
-## 7. Verify
+## 8. Verify
 
 Run `pi -p "list all available tools"` to confirm everything loaded.
 
@@ -86,7 +110,9 @@ Run `pi -p "list all available tools"` to confirm everything loaded.
 ├── general/          # General-purpose tools (any context)
 │   ├── agents/
 │   ├── extensions/   # subagent, notifications, memory
-│   └── skills/       # brave-search, browser-tools
+│   └── skills/       # Local skills plus Expo and Mobbin submodules
+├── libraries/        # External skill collections (Expo and Mobbin submodules)
+│   └── skills/
 ├── engineering/      # Software engineering tools
 │   ├── agents/       # scout, planner, reviewer, worker, remover
 │   ├── extensions/   # code-ast

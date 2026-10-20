@@ -16,6 +16,8 @@ Personal [pi](https://github.com/badlogic/pi-mono) dotfiles — extensions, skil
 ├── general/               # General-purpose tools (useful everywhere)
 │   ├── extensions/        # subagent, memory, notifications
 │   └── skills/            # brave-search, browser-tools, defuddle, annas-archive
+├── libraries/             # External skill collections tracked as submodules
+│   └── skills/            # Official Expo and Mobbin skills
 └── personal/              # Personal skills (non-engineering workflows)
     └── skills/            # ticktick, obsidian-cli, obsidian-markdown, obsidian-bases, json-canvas
 ```
@@ -23,7 +25,7 @@ Personal [pi](https://github.com/badlogic/pi-mono) dotfiles — extensions, skil
 ## Quick Start
 
 ```bash
-git clone git@github.com:CyberHoward/my-pi.git ~/.my-pi
+git clone --recurse-submodules git@github.com:CyberHoward/my-pi.git ~/.my-pi
 cd ~/.my-pi && pi "Read SETUP.md and walk me through setup."
 ```
 
@@ -43,6 +45,15 @@ Extensions and skills that are valuable in any context.
 | **browser-tools/** | Skill | Browser automation via Chrome DevTools Protocol. Requires Chrome |
 | **defuddle/** | Skill | Clean article extraction from URLs. Prefer over `WebFetch` for standard web pages. Requires `defuddle` CLI (`npm i -g defuddle`) |
 | **annas-archive/** | Skill | Access Anna's Archive mirrors, torrent listings, metadata, and API endpoints |
+
+### `libraries/` — External collections
+
+Third-party skill collections tracked as Git submodules.
+
+| Component | Type | Description |
+|-----------|------|-------------|
+| **expo/** | Skill collection (submodule) | Official [Expo skills](https://github.com/expo/skills) for Expo, React Native, and EAS workflows |
+| **mobbin/** | Skill collection (submodule) | Official [Mobbin skills](https://github.com/mobbin/skills) for design research and screen redesigns |
 
 ### `engineering/` — Software development
 
@@ -96,7 +107,27 @@ ln -sfn ~/.my-pi/engineering/agents  ~/.pi/agent/agents
 
 ### Per-project setup
 
-Run `/toggle` inside the project directory. The dashboard picks which skills, extensions, and agents to enable for that project — it writes `.pi/settings.json` (one include per enabled component), `.pi/toggle-config.json` (the disabled list), and an assembled `AGENTS.md` with per-tool docs.
+Run `/toggle` inside the project directory. The dashboard picks which skills, extensions, and agents to enable for that project — including skills inside the Expo and Mobbin submodules. It writes `.pi/settings.json` (one include per enabled component), `.pi/toggle-config.json` (the disabled list), and an assembled `AGENTS.md` with per-tool docs.
+
+### Updating skill submodules
+
+Initialize submodules after a non-recursive clone:
+
+```bash
+cd ~/.my-pi
+git submodule update --init --recursive
+```
+
+Update Expo and Mobbin to their latest upstream commits:
+
+```bash
+cd ~/.my-pi
+git submodule update --remote --merge libraries/skills/expo libraries/skills/mobbin
+git add .gitmodules libraries/skills/expo libraries/skills/mobbin
+git commit -m "Update Expo and Mobbin skills"
+```
+
+Run `/toggle` afterward so project configuration and documentation are regenerated with any newly added skills.
 
 ## Subagent routing and isolation
 

@@ -13,9 +13,9 @@ export interface ComponentItem {
   name: string;
   /** "skill" | "extension" | "agent" */
   type: "skill" | "extension" | "agent";
-  /** Top-level category: "engineering" | "general" | "personal" */
+  /** Top-level category: "engineering" | "general" | "libraries" | "personal" */
   category: string;
-  /** Sub-group within category, e.g. "superpowers" for superpowers skills */
+  /** Sub-group within category, e.g. "superpowers" or an external library source */
   subGroup?: string;
   /** Description from SKILL.md frontmatter (skills only) */
   description?: string;
@@ -32,7 +32,7 @@ export interface ComponentGroup {
 // ============================================================================
 
 const MY_PI_DIR = join(homedir(), ".my-pi");
-const CATEGORIES = ["engineering", "general", "personal"] as const;
+const CATEGORIES = ["engineering", "general", "libraries", "personal"] as const;
 const SKIP_DIRS = new Set(["node_modules", ".git", "pi-remote", "toggle"]);
 
 // ============================================================================
@@ -230,12 +230,15 @@ async function discoverSkills(
     const relativePath = relative(MY_PI_DIR, skillDir);
     const { name, description } = await parseSkillFrontmatter(filePath);
 
-    // Determine if this is a superpowers skill
     const pathParts = relativePath.split("/");
     const isSuperpowers =
       category === "engineering" &&
       pathParts.length >= 3 &&
       pathParts[2] === "superpowers";
+    const librarySource =
+      category === "libraries" && pathParts.length >= 3
+        ? pathParts[2]
+        : undefined;
 
     const item: ComponentItem = {
       relativePath,
@@ -247,6 +250,8 @@ async function discoverSkills(
 
     if (isSuperpowers) {
       item.subGroup = "superpowers";
+    } else if (librarySource) {
+      item.subGroup = librarySource;
     }
 
     items.push(item);
@@ -293,7 +298,7 @@ export function buildGroupTree(items: ComponentItem[]): ComponentGroup[] {
       });
     }
 
-    // Skills (non-superpowers)
+    // Skills without a source-specific subgroup
     const regularSkills = categoryItems.filter(
       (i) => i.type === "skill" && !i.subGroup
     );
@@ -305,18 +310,24 @@ export function buildGroupTree(items: ComponentItem[]): ComponentGroup[] {
       });
     }
 
-    // Superpowers (special sub-group for engineering)
-    if (category === "engineering") {
-      const superpowersSkills = categoryItems.filter(
-        (i) => i.type === "skill" && i.subGroup === "superpowers"
+    // Source-specific skill groups
+    const skillSubGroups = [
+      ...new Set(
+        categoryItems
+          .filter((i) => i.type === "skill" && i.subGroup)
+          .map((i) => i.subGroup!),
+      ),
+    ].sort();
+
+    for (const subGroup of skillSubGroups) {
+      const skills = categoryItems.filter(
+        (i) => i.type === "skill" && i.subGroup === subGroup,
       );
-      if (superpowersSkills.length > 0) {
-        categoryGroup.children.push({
-          id: `${category}/superpowers`,
-          label: "superpowers",
-          children: superpowersSkills,
-        });
-      }
+      categoryGroup.children.push({
+        id: `${category}/${subGroup}`,
+        label: subGroup,
+        children: skills,
+      });
     }
 
     groups.push(categoryGroup);

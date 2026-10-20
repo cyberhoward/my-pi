@@ -19,9 +19,9 @@ Interactive TUI for picking which `~/.my-pi` skills, extensions, and agents are 
 
 ### Group Toggles
 
-Top-level categories (Engineering, General, Personal) and sub-groups (Agents, Extensions, Skills, Superpowers) act as group toggles — toggling them cascades to all children.
+Top-level categories (Engineering, General, Libraries, Personal) and sub-groups (Agents, Extensions, Skills, Superpowers, and external library sources such as Expo or Mobbin) act as group toggles — toggling them cascades to all children.
 
-Mixed groups show the count of enabled items (e.g., `3/5 enabled`).
+Mixed groups show the count of enabled items (e.g., `3/5 enabled`). Newly discovered components under `general/` start enabled. Newly discovered components in every other category start disabled, so they are only loaded after you select them.
 
 ## What it writes
 
@@ -29,7 +29,7 @@ Every toggle updates three files in the project's `.pi/` directory (creating the
 
 | File | Purpose |
 |------|---------|
-| `.pi/toggle-config.json` | Source of truth for what you've chosen — a list of disabled component paths |
+| `.pi/toggle-config.json` | Source of truth for what you've chosen — disabled paths plus the component paths already presented to you |
 | `.pi/settings.json` | Pi's settings file — gets one include entry per **enabled** component |
 | `{cwd}/AGENTS.md` | Assembled tool documentation for the agent (inside `<!-- toggle-managed-start/end -->` markers) |
 

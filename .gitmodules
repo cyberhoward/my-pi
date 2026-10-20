@@ -1,3 +1,9 @@
 [submodule "pi-remote"]
 	path = pi-remote
 	url = https://github.com/noahsaso/pi-remote.git
+[submodule "libraries/skills/expo"]
+	path = libraries/skills/expo
+	url = https://github.com/expo/skills.git
+[submodule "libraries/skills/mobbin"]
+	path = libraries/skills/mobbin
+	url = https://github.com/mobbin/skills.git
