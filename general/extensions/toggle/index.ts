@@ -9,7 +9,6 @@ import {
   toggleItem,
 } from "./config.ts";
 import { applyToggleConfig } from "./settings-writer.ts";
-import { assembleProjectAgentsMd } from "./assembler.ts";
 import { buildSettingItems, createToggleUI } from "./ui.ts";
 import type { ToggleSettingItem } from "./ui.ts";
 
@@ -24,9 +23,6 @@ export default function toggleExtension(pi: ExtensionAPI) {
       const cwd = ctx.cwd;
       const home = homedir();
 
-      // Reject use in the home directory — /toggle is a project-scoping tool
-      // and would have no meaningful effect at $HOME (no project settings to
-      // write, and we don't want to litter $HOME with an AGENTS.md block).
       if (resolve(cwd) === resolve(home)) {
         ctx.ui.notify(
           "/toggle must be run inside a project directory — cd into a project first.",
@@ -43,18 +39,12 @@ export default function toggleExtension(pi: ExtensionAPI) {
         return;
       }
 
-      // Initial sync: materialize the current project config into settings.json
-      // and AGENTS.md so opening `/toggle` always brings these files in line
-      // with the saved toggle-config.json, even without any user toggles.
       const loadedConfig = await loadConfig("project", cwd);
       const initialConfig = registerDiscoveredComponents(loadedConfig, allItems);
       if (JSON.stringify(initialConfig) !== JSON.stringify(loadedConfig)) {
         await saveConfig(initialConfig, "project", cwd);
       }
-      const settingsChanged = await applyToggleConfig(initialConfig, allItems, "project", cwd);
-      const agentsMdChanged = await assembleProjectAgentsMd(initialConfig, allItems, cwd);
-
-      let changed = settingsChanged || agentsMdChanged;
+      let changed = await applyToggleConfig(initialConfig, allItems, "project", cwd);
       let running = true;
 
       while (running) {
@@ -83,7 +73,6 @@ export default function toggleExtension(pi: ExtensionAPI) {
                 Object.assign(config, updatedConfig);
                 await saveConfig(updatedConfig, "project", cwd);
                 await applyToggleConfig(updatedConfig, allItems, "project", cwd);
-                await assembleProjectAgentsMd(updatedConfig, allItems, cwd);
 
                 changed = true;
               },

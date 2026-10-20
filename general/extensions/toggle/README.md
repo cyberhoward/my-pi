@@ -25,15 +25,14 @@ Mixed groups show the count of enabled items (e.g., `3/5 enabled`). Newly discov
 
 ## What it writes
 
-Every toggle updates three files in the project's `.pi/` directory (creating them on first use):
+Every toggle updates two files in the project's `.pi/` directory (creating them on first use):
 
 | File | Purpose |
 |------|---------|
 | `.pi/toggle-config.json` | Source of truth for what you've chosen — disabled paths plus the component paths already presented to you |
 | `.pi/settings.json` | Pi's settings file — gets one include entry per **enabled** component |
-| `{cwd}/AGENTS.md` | Assembled tool documentation for the agent (inside `<!-- toggle-managed-start/end -->` markers) |
 
-Entries in `.pi/settings.json` that point into `~/.my-pi/` are considered managed by this extension and rewritten on every toggle. Any other entries (user-authored includes, excludes of unrelated paths) are preserved verbatim. Preserved project-local agent includes (for example `.pi/agents/my-agent.md`) are also documented in the generated `AGENTS.md` block so the visible agent list matches what Pi loads.
+Entries in `.pi/settings.json` that point into `~/.my-pi/` are considered managed by this extension and rewritten on every toggle. Any other entries (user-authored includes, excludes of unrelated paths) are preserved verbatim. `/toggle` does not create or modify `AGENTS.md`.
 
 ### Include paths by component type
 
@@ -48,18 +47,6 @@ Entries in `.pi/settings.json` that point into `~/.my-pi/` are considered manage
 
 Global `~/.pi/agent/settings.json` carries a small hand-curated set of always-on tools (toggle itself, subagent + its agents, notifications, memory). Everything else is project-gated so a fresh pi session outside a project stays minimal, and each project declares exactly the toolkit it needs.
 
-## SNIPPET.md convention
-
-Each component can ship a `SNIPPET.md` — prose written in imperative voice addressing the agent ("You have tool X; use it when…"). When a component is enabled, its snippet is inlined into the project's assembled `AGENTS.md`. For agents, the snippet is synthesized from frontmatter `description` + `model`.
-
-| Component layout | Snippet location |
-|---|---|
-| `<name>/` (directory) | `<name>/SNIPPET.md` |
-| `<name>.ts` (single file) | `<name>.SNIPPET.md` (sibling) |
-| `<name>.md` (agent) | None — synthesized from frontmatter |
-
-If a component has no snippet, it still loads (it just doesn't contribute to AGENTS.md).
-
 ## How changes apply
 
-Changes are written to disk immediately on every toggle. Opening `/toggle` also performs an initial sync of `.pi/settings.json` and `AGENTS.md`; if that sync changes either file, closing the dashboard calls `ctx.reload()` even if no checkbox was toggled. This lets newly documented or preserved project-local components become visible without manually running `/reload`.
+Changes are written to disk immediately on every toggle. Opening `/toggle` also performs an initial sync of `.pi/settings.json`; if that sync changes it, closing the dashboard calls `ctx.reload()` even if no checkbox was toggled.
