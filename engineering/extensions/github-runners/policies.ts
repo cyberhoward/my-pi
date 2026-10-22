@@ -50,6 +50,10 @@ export function assertPolicyScope(binding: RepositoryBinding, settings: RunnerSe
   if (!allowed.includes(config.repository.toLowerCase())) throw new Error("organization policy primary repository must be in the configured allowlist");
 }
 
+export function generatedMaximumLifetimeSeconds(standbyMinutes: number): number {
+  return Math.min(86400, Math.max(900, standbyMinutes * 60 + 65));
+}
+
 function family(serverType: string): ["CX" | "CPX" | "CCX", "shared" | "dedicated", "cost-optimized" | "regular" | "general-purpose"] {
   if (serverType.startsWith("cx")) return ["CX", "shared", "cost-optimized"];
   if (serverType.startsWith("cpx")) return ["CPX", "shared", "regular"];
@@ -103,7 +107,7 @@ export async function materializePolicies(binding: RepositoryBinding, rawSetting
           mutation: { enabled: settings.automationEnabled === true }, credentials: { hcloudTokenEnv: "HCLOUD_TOKEN", githubTokenEnv: "RUNNER_MANAGER_GITHUB_TOKEN" },
           coordination: { lockPath: join(lockDirectory, `${safeId(`${scope}:${size.name}`)}.lock`) },
           github: { repository, ...(global ? { organization: { name: organizationName!, repositories: normalizedAllowed, runnerGroupId: settings.organization!.runnerGroupId, runnerGroupName: settings.organization!.runnerGroupName } } : {}) },
-          pool: { name: pool, selectedTier: "selected", maxSize: size.quantity, costs: { maxKnownHourlyPoolEur: size.maxHourlyCostEur, maxKnownEligibilityEur: size.maxEligibilityCostEur }, timing: { scaleUpDelaySeconds: 15, idleGraceSeconds: standby * 60, bootstrapGraceSeconds: 60, drainQuiescenceSeconds: 65, drainProbeSeconds: 5, maximumLifetimeSeconds: Math.min(86400, Math.max(900, standby * 60 + 65)) } },
+          pool: { name: pool, selectedTier: "selected", maxSize: size.quantity, costs: { maxKnownHourlyPoolEur: size.maxHourlyCostEur, maxKnownEligibilityEur: size.maxEligibilityCostEur }, timing: { scaleUpDelaySeconds: 15, idleGraceSeconds: standby * 60, bootstrapGraceSeconds: 60, drainQuiescenceSeconds: 65, drainProbeSeconds: 5, maximumLifetimeSeconds: generatedMaximumLifetimeSeconds(standby) } },
           runner: { architecture: "x64", version: size.runnerVersion, archiveSha256: size.runnerArchiveSha256 },
           hetzner: { serverType: size.serverType, location: size.location, image: size.image, firewallId: size.firewallId, networkId: null, sshKeyIds: [], publicNetwork: { ipv4: true, ipv6: true } },
           inventory: { managedLabelValue: "pi-github-runners-v1", classificationLabels: { workload: "github-actions" } },

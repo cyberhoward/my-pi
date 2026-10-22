@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -66,12 +66,18 @@ describe("settings", () => {
     await writeFile(join(root, ".pi/github-runners.json"), JSON.stringify({ reaper: { sshTarget: "controller_alias", installationId: "0123456789abcdef", environmentFile: "/private.env" } }));
     await expect(loadSettings(root)).resolves.toMatchObject({ reaper: { sshTarget: "controller_alias" } });
   });
-  it("stores global settings globally and leaves only the local mode selection", async () => {
+  it("stores global settings globally and leaves only the private local mode selection", async () => {
     const root = await mkdtemp(join(tmpdir(), "runner-settings-"));
     const home = await mkdtemp(join(tmpdir(), "runner-home-"));
     const settings: RunnerSettings = { mode: "global", policies: [], pollIntervalSeconds: 60, standbyMinutes: 15, startOnLoad: false, automationEnabled: false, organization: { name: "Acme", repositories: ["Acme/Widgets"], runnerGroupId: 12, runnerGroupName: "pi" }, sizes: [], sourcePath: "ignored" };
+    const selector = join(root, ".pi/github-runners.json");
+    await mkdir(join(root, ".pi"));
+    await writeFile(selector, "{}", { mode: 0o644 });
+    await chmod(selector, 0o644);
     await saveSettings(root, settings, { home });
-    expect(JSON.parse(await readFile(join(root, ".pi/github-runners.json"), "utf8"))).toEqual({ mode: "global" });
+    expect(JSON.parse(await readFile(selector, "utf8"))).toEqual({ mode: "global" });
+    expect((await stat(selector)).mode & 0o777).toBe(0o600);
+    expect((await stat(join(home, ".pi/agent/github-runners.json"))).mode & 0o777).toBe(0o600);
     await expect(loadSettings(root, { home })).resolves.toMatchObject({ mode: "global", organization: { ...settings.organization, name: "acme", repositories: ["acme/widgets"] } });
   });
 });

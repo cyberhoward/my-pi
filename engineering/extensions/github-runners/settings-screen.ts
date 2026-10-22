@@ -3,7 +3,7 @@ import { Container, SettingsList, Text, truncateToWidth, type SettingItem } from
 import type { RunnerSettings } from "./settings.js";
 
 export type SettingsScreenAction =
-  | { id: "organization" | "repositories" | "runner-group" | "sizes" | "standby" | "automation" | "remote" }
+  | { id: "guided-setup" | "organization" | "repositories" | "runner-group" | "sizes" | "standby" | "automation" | "remote" }
   | { id: "save" | "discard" };
 
 type ScreenTheme = { fg(token: string, text: string): string; bold(text: string): string };
@@ -52,6 +52,7 @@ export class RunnerSettingsScreen extends Container {
       item("remote", "Remote reaper", settings.reaper ? `installed on ${settings.reaper.sshTarget}` : "not installed", "Saving does not update the remote snapshot; its installed controller keeps its current configuration until you reinstall for this host and scope."),
       item("save", "Save changes", "save", "Persist this draft. Enabled local automation can immediately create billable capacity or reconcile; the remote snapshot is not redeployed."),
       item("discard", "Discard changes", "discard", "Discard this draft without writing settings."),
+      item("guided-setup", "Guided setup", "open", "Configure runner scope, named pools, quantities, infrastructure choices, pins, expiry, and cost caps in a separate wizard."),
     ];
     this.title = new Text("", 0, 0);
     refreshTitle();

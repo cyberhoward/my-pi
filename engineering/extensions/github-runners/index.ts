@@ -6,6 +6,8 @@ import { footerText, readMonitorState, RunnerMonitor, type MonitorState } from "
 import { detectRepository, nodeCommandRunner, sameRepository } from "./repository.js";
 import { loadSettings, saveSettings, type RunnerSettings } from "./settings.js";
 import { configureRunners } from "./settings-menu.js";
+import { setupRunners } from "./setup.js";
+import { createSetupServices } from "./setup-services.js";
 import { materializePolicies } from "./policies.js";
 import { RunnerAutomation } from "./automation.js";
 import { loadPolicy } from "./src/config.js";
@@ -14,7 +16,7 @@ import { applyBulkPlans, bulkPreviewText, bulkScope, decodeRemoteBulk, prepareBu
 import { installReaper, reaperInstallationId, reaperStatus, requestReaper, uninstallReaper, type ReaperRequest } from "./remote-reaper.js";
 import { selectSshTarget } from "./ssh-hosts.js";
 
-const usage = "Usage: /runners [status|refresh|ensure|reconcile|drain|destroy|reaper install|reaper status|reaper uninstall] [--policy <path-or-selected-policy>] [--capacity N] [--instance UUID|--all] [--apply]";
+const usage = "Usage: /runners [setup|settings|status|refresh|ensure|reconcile|drain|destroy|reaper install|reaper status|reaper uninstall] [--policy <path-or-selected-policy>] [--capacity N] [--instance UUID|--all] [--apply]";
 const operations = new Set(["status", "refresh", "ensure", "reconcile", "drain", "destroy"]);
 type Parsed = { operation: string; policy?: string; capacity?: string; instance?: string; all: boolean; apply: boolean };
 type CorePlan = { warnings?: string[]; operations?: unknown[] };
@@ -51,7 +53,7 @@ export function parseRunnerCommand(input: string): Parsed {
 function output(ctx: ExtensionCommandContext, text: string, type: "info" | "warning" | "error" = "info"): void { if (ctx.hasUI) ctx.ui.notify(text, type); else console.log(text); }
 function parseOutput(text: string): CoreOutput | undefined { for (const line of text.split(/\r?\n/)) { try { return JSON.parse(line) as CoreOutput; } catch {} } return undefined; }
 function planFingerprintFrom(text: string): string | undefined { const plan = parseOutput(text)?.plan; return plan && !plan.warnings?.length && Array.isArray(plan.operations) ? planFingerprint(plan as Parameters<typeof planFingerprint>[0]) : undefined; }
-async function choose(ctx: ExtensionCommandContext): Promise<string | undefined> { return ctx.hasUI ? ctx.ui.select("GitHub runners", ["status", "refresh", "ensure", "reconcile", "drain", "destroy", "destroy --all", "settings", "reaper install", "reaper status", "reaper uninstall"]) : undefined; }
+async function choose(ctx: ExtensionCommandContext): Promise<string | undefined> { return ctx.hasUI ? ctx.ui.select("GitHub runners", ["setup", "settings", "status", "refresh", "ensure", "reconcile", "drain", "destroy", "destroy --all", "reaper install", "reaper status", "reaper uninstall"]) : undefined; }
 async function ghToken(cwd: string): Promise<string | undefined> { try { return (await nodeCommandRunner("gh", ["auth", "token", "--hostname", "github.com"], { cwd, timeoutMs: 5_000, maxBuffer: 16 * 1024 })).stdout.trim() || undefined; } catch { return undefined; } }
 export async function snapshotPolicy(path: string): Promise<{ path: string; cleanup: () => Promise<void> }> { const bytes = await readFile(path); if (bytes.byteLength > 256 * 1024) throw new Error("policy exceeds 256 KiB limit"); const directory = await mkdtemp(join(tmpdir(), "pi-runner-policy-")); const snapshot = join(directory, "policy.yaml"); await writeFile(snapshot, bytes, { mode: 0o600 }); return { path: snapshot, cleanup: () => rm(directory, { recursive: true, force: true }) }; }
 export function assertPolicyRepository(repository: string, policyRepository: string): void { if (!sameRepository(policyRepository, repository)) throw new Error("policy repository does not match the active GitHub origin"); }
@@ -227,8 +229,16 @@ export default function (pi: ExtensionAPI): void {
   pi.on("session_shutdown", async () => { await bindQueue; await stop(); });
   pi.registerCommand("runners", { description: "Show or safely manage GitHub Actions runners for the active repository", handler: async (input, ctx) => {
     try {
-      await bind(ctx); const value = input.trim() ? input.trim() : await choose(ctx); if (!value) { output(ctx, usage); return; }
-      if (value === "settings") { const binding = await detectRepository(ctx.cwd); if (!binding) throw new Error("active directory must have one exact github.com origin"); if (await configureRunners(ctx, binding)) { await stop(); await bind(ctx); } return; }
+      const value = input.trim() ? input.trim() : await choose(ctx); if (!value) { output(ctx, usage); return; }
+      if (value === "setup" || value === "settings") {
+        const binding = await detectRepository(ctx.cwd);
+        if (!binding) throw new Error("active directory must have one exact github.com origin");
+        const setup = () => setupRunners(ctx, binding, createSetupServices(binding));
+        const saved = value === "setup" ? await setup() : await configureRunners(ctx, binding, { onGuidedSetup: setup });
+        if (saved) { await stop(); await bind(ctx); }
+        return;
+      }
+      await bind(ctx);
       const reaper = /^reaper\s+(install|status|uninstall)$/.exec(value); if (reaper) { await manageReaper(ctx, reaper[1] as "install" | "status" | "uninstall", stop); return; }
       await invokeCore(ctx, parseRunnerCommand(value), monitor);
     } catch (error) { output(ctx, error instanceof Error ? error.message : "runner command failed", "error"); }

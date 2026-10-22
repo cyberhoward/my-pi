@@ -39,6 +39,13 @@ config.tier = {
   serverTypes: ["cpx11"],
   sources: ["https://www.hetzner.com/cloud/regular-performance"],
 };
+it("refuses unsupported bootstrap images before provider requests", async () => {
+  const fetcher = vi.fn();
+  const unsupported = { ...config, hcloud: { ...config.hcloud, image: "fedora-42" } };
+  await expect(new HCloudClient(fetcher, new Secret("token")).preflight(unsupported)).rejects.toThrow("not supported");
+  expect(fetcher).not.toHaveBeenCalled();
+});
+
 it("uses bounded Hetzner meta pagination", async () => {
   const fetcher = vi
     .fn()

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { access, mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { access, chmod, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { constants } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
@@ -171,19 +171,20 @@ function serializable(root: string, settings: RunnerSettings): Record<string, un
   const { sourcePath: _sourcePath, policies, ...value } = settings;
   return { ...value, policies: policies.map((policy) => relative(root, resolvePolicyPath(root, relative(root, resolve(root, policy)))) ) };
 }
+async function writePrivateAtomic(target: string, content: string): Promise<void> {
+  await mkdir(dirname(target), { recursive: true, mode: 0o700 });
+  const temporary = `${target}.${process.pid}.${Date.now()}.tmp`;
+  await writeFile(temporary, content, { mode: 0o600 });
+  await rename(temporary, target);
+  await chmod(target, 0o600);
+}
 export async function saveSettings(root: string, settings: RunnerSettings, paths: SettingsPaths = {}): Promise<void> {
   const local = resolve(root, ".pi/github-runners.json");
   const target = settings.mode === "global" ? resolve(paths.home ?? homedir(), ".pi/agent/github-runners.json") : local;
   let value = serializable(root, settings);
   value = serializable(root, parseSettings(value, root, target));
-  await mkdir(dirname(target), { recursive: true, mode: 0o700 });
-  const temporary = `${target}.${process.pid}.${Date.now()}.tmp`;
-  await writeFile(temporary, JSON.stringify(value, null, 2) + "\n", { mode: 0o600 });
-  await rename(temporary, target);
-  if (settings.mode === "global") {
-    await mkdir(dirname(local), { recursive: true, mode: 0o700 });
-    await writeFile(local, JSON.stringify({ mode: "global" }, null, 2) + "\n", { mode: 0o600 });
-  }
+  await writePrivateAtomic(target, JSON.stringify(value, null, 2) + "\n");
+  if (settings.mode === "global") await writePrivateAtomic(local, JSON.stringify({ mode: "global" }, null, 2) + "\n");
 }
 export function automationErrors(settings: RunnerSettings): string[] {
   const errors: string[] = [];

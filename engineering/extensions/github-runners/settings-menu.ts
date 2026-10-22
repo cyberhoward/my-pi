@@ -10,6 +10,8 @@ type MenuContext = {
   mode?: string;
   ui: Pick<ExtensionUIContext, "select" | "input" | "editor" | "confirm" | "notify"> & Partial<Pick<ExtensionUIContext, "custom">>;
 };
+type ConfigureResult = boolean | "guided-setup";
+export interface ConfigureRunnersOptions { onGuidedSetup?: () => Promise<boolean>; }
 
 const sizeTemplate = [{
   name: "small-linux", labels: ["pi-runner-small"], quantity: 0,
@@ -75,7 +77,7 @@ async function saveDraft(ctx: MenuContext, binding: RepositoryBinding, settings:
   catch (error) { notice(ctx, error instanceof Error ? error.message : "Could not save runner settings", "error"); return undefined; }
 }
 
-async function configureNative(ctx: MenuContext, binding: RepositoryBinding, settings: RunnerSettings, original: string): Promise<boolean> {
+async function configureNative(ctx: MenuContext, binding: RepositoryBinding, settings: RunnerSettings, original: string): Promise<ConfigureResult> {
   let selectedId: string | undefined;
   for (;;) {
     const action = await ctx.ui.custom!<SettingsScreenAction>(async (tui, theme, _keybindings, done) => {
@@ -90,6 +92,10 @@ async function configureNative(ctx: MenuContext, binding: RepositoryBinding, set
     });
     selectedId = undefined;
     if (!action || action.id === "discard") return false;
+    if (action.id === "guided-setup") {
+      if (JSON.stringify(settings) !== original && !await ctx.ui.confirm("Discard unsaved settings?", "Guided setup opens separately. Discard this advanced-settings draft without saving?")) continue;
+      return "guided-setup";
+    }
     if (action.id === "save") {
       const saved = await saveDraft(ctx, binding, settings, original);
       if (saved !== undefined) return saved;
@@ -104,9 +110,10 @@ async function configureNative(ctx: MenuContext, binding: RepositoryBinding, set
   }
 }
 
-async function configureFallback(ctx: MenuContext, binding: RepositoryBinding, settings: RunnerSettings, original: string): Promise<boolean> {
+async function configureFallback(ctx: MenuContext, binding: RepositoryBinding, settings: RunnerSettings, original: string): Promise<ConfigureResult> {
   for (;;) {
     const choice = await ctx.ui.select("GitHub runner settings", [
+      "Guided setup (scope, pools, quantities, infrastructure, costs)",
       `Scope: ${settings.mode === "global" ? "global organization pool" : "local repository pool"}`,
       `Organization: ${settings.organization?.name ?? "not configured"}`,
       `Allowed repositories: ${settings.organization?.repositories.join(", ") || "not configured"}`,
@@ -117,6 +124,10 @@ async function configureFallback(ctx: MenuContext, binding: RepositoryBinding, s
       "Save and close", "Cancel",
     ]);
     if (!choice || choice === "Cancel") return false;
+    if (choice.startsWith("Guided setup")) {
+      if (JSON.stringify(settings) !== original && !await ctx.ui.confirm("Discard unsaved settings?", "Guided setup opens separately. Discard this advanced-settings draft without saving?")) continue;
+      return "guided-setup";
+    }
     if (choice.startsWith("Scope:")) { const scope = await ctx.ui.select("Runner pool scope", ["local", "global"]); if (scope === "local" || scope === "global") settings.mode = scope; }
     else if (choice.startsWith("Organization:")) await editDraft(ctx, settings, "organization");
     else if (choice.startsWith("Allowed repositories:")) await editDraft(ctx, settings, "repositories");
@@ -130,11 +141,12 @@ async function configureFallback(ctx: MenuContext, binding: RepositoryBinding, s
   }
 }
 
-export async function configureRunners(ctx: MenuContext, binding: RepositoryBinding): Promise<boolean> {
+export async function configureRunners(ctx: MenuContext, binding: RepositoryBinding, options: ConfigureRunnersOptions = {}): Promise<boolean> {
   if (!ctx.hasUI) { notice(ctx, "Runner settings require an interactive TUI", "warning"); return false; }
   let settings: RunnerSettings;
   try { settings = clone(await loadSettings(binding.root)); }
   catch (error) { notice(ctx, error instanceof Error ? error.message : "Could not load runner settings", "error"); return false; }
   const original = JSON.stringify(settings);
-  return ctx.mode === "tui" && ctx.ui.custom ? configureNative(ctx, binding, settings, original) : configureFallback(ctx, binding, settings, original);
+  const result = await (ctx.mode === "tui" && ctx.ui.custom ? configureNative(ctx, binding, settings, original) : configureFallback(ctx, binding, settings, original));
+  return result === "guided-setup" ? await options.onGuidedSetup?.() ?? false : result;
 }

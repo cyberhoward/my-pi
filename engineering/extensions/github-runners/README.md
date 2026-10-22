@@ -21,6 +21,8 @@ The extension operates only when the current directory has one exact `github.com
 
 ```
 /runners
+/runners setup
+/runners settings
 /runners status [--policy NAME_OR_PATH]
 /runners refresh
 /runners ensure [--policy NAME_OR_PATH] [--capacity 0..3] [--apply]
@@ -30,7 +32,7 @@ The extension operates only when the current directory has one exact `github.com
 /runners destroy --all [--policy NAME_OR_PATH] [--apply]
 ```
 
-`/runners` opens the command/settings menu in the TUI. Its native searchable settings list supports inline cycles, restores selection after an edit, and offers explicit **Save changes** and **Discard changes** actions. Saving enabled local automation stops/rebinds the current loop and starts it again, so it can immediately reconcile or create billable capacity; it does not redeploy a remote controller snapshot. `status` observes the configured policy/pool; without a policy it reports the GitHub runner inventory. `refresh` is local read-only monitoring. `ensure` is a bounded desired-capacity request, `reconcile` follows the policy, `drain` starts safe draining of one owned instance, and `destroy` first drains then later probes/removes it when safe. `--instance` is required for `drain`; `destroy` requires either `--instance` or `--all`, never both. `--capacity` is only for `ensure`; `--policy` selects a named/materialized policy.
+`/runners` opens the command/settings menu in the TUI, with **setup** first. `/runners setup` opens the guided configuration wizard before binding local monitoring or automation, so merely opening or cancelling it does not prewarm or activate anything. It explains repository versus organization scope, named pool quantities (0–3), x86 Hetzner type/location/image choices, existing restrictive firewalls, runner pins, idle expiry, polling, workflow labels, and per-pool cost estimates/caps. Discovery is read-only; it does not collect tokens, create firewalls or cloud resources, change workflows, deploy over SSH, or alter a remote snapshot. It saves disabled configuration by default; local paid automation is a separate freshly validated, cost-confirmed, sole-writer action. Existing automation may continue while the wizard is open. Its native searchable settings list keeps the advanced JSON editor, adds Guided setup, restores selection after an edit, and offers explicit **Save changes** and **Discard changes** actions. Saving enabled local automation stops/rebinds the current loop and starts it again, so it can immediately reconcile or create billable capacity; it does not redeploy a remote controller snapshot. `status` observes the configured policy/pool; without a policy it reports the GitHub runner inventory. `refresh` is local read-only monitoring. `ensure` is a bounded desired-capacity request, `reconcile` follows the policy, `drain` starts safe draining of one owned instance, and `destroy` first drains then later probes/removes it when safe. `--instance` is required for `drain`; `destroy` requires either `--instance` or `--all`, never both. `--capacity` is only for `ensure`; `--policy` selects a named/materialized policy.
 
 Management is plan-first. `--apply` is allowed only in an interactive TUI and requires a warning-free unchanged plan, two confirmations (including sole-controller confirmation), and policy `mutation.enabled: true`. Without all of them it does not mutate. Single-instance apply operations require an explicit `--policy` when multiple policies exist.
 
@@ -44,7 +46,7 @@ The footer is `busy/online runners` (for example, `1/2 runners`), not a capacity
 
 Local settings live at `<git-root>/.pi/github-runners.json`. A local file containing `{ "mode": "global" }` selects the genuinely shared global configuration at `~/.pi/agent/github-runners.json`; it is not a personal-account runner mode. A global pool requires an organization name, a GitHub runner group ID/name, and an explicit exact `owner/repo` allowlist. All allowlisted repositories must belong to that organization, and the active repository and selected policy must be allowlisted.
 
-Defaults are local, monitoring-oriented, and disabled for automation/mutation. Settings reject unknown keys. A minimal valid local draft is:
+Defaults are local, monitoring-oriented, and disabled for automation/mutation. Guided setup retains legacy policies unless the operator explicitly accepts replacement and its identity/billing warning; it never adopts or cleans up legacy VMs. An installed remote controller remains unchanged and prevents local activation. Settings reject unknown keys. A minimal valid local draft is:
 
 ```json
 {
@@ -88,7 +90,7 @@ A complete generated-pool example (placeholder values only; no credentials belon
 }
 ```
 
-Each active size mapping is complete: custom routing `labels` (not `self-hosted`, `linux`, or `x64`), `quantity` 1–3, Hetzner type/location/image/firewall, pinned runner version and 64-hex archive checksum, and hourly/eligibility cost caps. Generated pools accept only x86 CX/CPX/CCX types and Linux x64 runners. A mapping with `quantity: 0` is disabled and may remain an incomplete draft; it generates no policy and does not delete existing managed VMs. Do not combine `sizes` with legacy `policies`.
+Each active size mapping is complete: custom routing `labels` (not `self-hosted`, `linux`, or `x64`), `quantity` 1–3, Hetzner type/location/image/firewall, pinned runner version and 64-hex archive checksum, and hourly/eligibility cost caps. Generated pools accept only x86 CX/CPX/CCX types and Linux x64 runners. Provider preflight currently supports the Ubuntu 24.04 system image, matching the bootstrap dependencies. A mapping with `quantity: 0` is disabled and may remain an incomplete draft; it generates no policy and does not delete existing managed VMs. Do not combine `sizes` with legacy `policies`.
 
 Legacy YAML policies remain supported, including the legacy API identity profile. This does **not** adopt old servers into a generic identity: destructive operations require an owned, correctly labelled, configuration-matching instance.
 

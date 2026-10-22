@@ -1,4 +1,6 @@
 import { type FetchLike, requestJson } from "./http.js";
+import { knownHourlyPrice, maximumEligibilityCost, poolHourlyCost, publicIpHourlyPrice } from "./hcloud-costs.js";
+import { assertRestrictiveFirewall, assertSupportedSystemImage } from "./hcloud-validation.js";
 import type { CreateServerInput, HCloudPort, KnownCost } from "./ports.js";
 import {
   type CloudServer,
@@ -30,14 +32,6 @@ function text(value: unknown, name: string): string {
   if (typeof value !== "string" || !value)
     throw new ProviderFailure(`malformed Hetzner ${name}`);
   return value;
-}
-function knownPrice(value: unknown, name: string): number {
-  if (typeof value !== "string" || !/^\d+(?:\.\d+)?$/.test(value))
-    throw new SafeRefusal(`provider ${name} pricing is unavailable`);
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed < 0)
-    throw new SafeRefusal(`provider ${name} pricing is unavailable`);
-  return parsed;
 }
 
 export class HCloudClient implements HCloudPort {
@@ -174,6 +168,7 @@ export class HCloudClient implements HCloudPort {
     return object(serverTypes[0], "server type");
   }
   async preflight(config: RunnerManagerConfig): Promise<KnownCost> {
+    assertSupportedSystemImage(config.hcloud.image);
     const [firewall, serverType, image, location, pricingRoot] =
       await Promise.all([
         this.get(`/firewalls/${config.hcloud.firewallId}`, "firewall"),
@@ -209,49 +204,7 @@ export class HCloudClient implements HCloudPort {
       );
     if (text(image.name, "image name") !== config.hcloud.image)
       throw new SafeRefusal("image identity mismatched");
-    const rules = array(firewall.rules, "firewall rules").map((v) =>
-      object(v, "firewall rule"),
-    );
-    if (rules.some((rule) => rule.direction === "in"))
-      throw new SafeRefusal("firewall must deny all inbound traffic");
-    const required = [
-      { protocol: "udp", port: "53" },
-      { protocol: "tcp", port: "53" },
-      { protocol: "udp", port: "123" },
-      { protocol: "tcp", port: "80" },
-      { protocol: "tcp", port: "443" },
-    ];
-    for (const rule of rules) {
-      if (rule.direction !== "out") continue;
-      const approved = required.some(
-        (expected) =>
-          rule.protocol === expected.protocol &&
-          String(rule.port ?? "") === expected.port,
-      );
-      if (!approved)
-        throw new SafeRefusal("firewall contains unapproved outbound egress");
-    }
-    for (const expected of required) {
-      const allowed = rules.some((rule) => {
-        if (
-          rule.direction !== "out" ||
-          rule.protocol !== expected.protocol ||
-          String(rule.port ?? "") !== expected.port
-        )
-          return false;
-        const destinations = array(
-          rule.destination_ips,
-          "firewall destination_ips",
-        );
-        return (
-          destinations.includes("0.0.0.0/0") && destinations.includes("::/0")
-        );
-      });
-      if (!allowed)
-        throw new SafeRefusal(
-          `firewall missing ${expected.protocol}/${expected.port} IPv4/IPv6 egress`,
-        );
-    }
+    assertRestrictiveFirewall(firewall.rules);
     if (
       image.status !== "available" ||
       image.architecture !== observedArchitecture ||
@@ -274,36 +227,27 @@ export class HCloudClient implements HCloudPort {
     const selected = prices.find((v) => v.location === config.hcloud.location);
     if (!selected)
       throw new SafeRefusal("server type unavailable in selected location");
-    const serverHourly = knownPrice(
+    const serverHourly = knownHourlyPrice(
       object(selected.price_hourly, "hourly price").net,
       "server hourly",
     );
-    const primaryTypes = array(
+    const ipv4 = publicIpHourlyPrice(
       pricingRoot.primary_ips,
-      "primary IP pricing",
-    ).map((value) => object(value, "primary IP type"));
-    const primaryPrice = (type: "ipv4" | "ipv6"): number => {
-      const entry = primaryTypes.find((value) => value.type === type);
-      if (!entry && type === "ipv6") return 0;
-      if (!entry)
-        throw new SafeRefusal(`provider ${type} pricing is unavailable`);
-      const locationPrice = array(entry.prices, `${type} prices`)
-        .map((value) => object(value, `${type} price`))
-        .find((value) => value.location === config.hcloud.location);
-      if (!locationPrice)
-        throw new SafeRefusal(
-          `provider ${type} price unavailable in selected location`,
-        );
-      return knownPrice(
-        object(locationPrice.price_hourly, `${type} hourly price`).net,
-        `${type} hourly`,
-      );
-    };
-    const ipv4 = config.hcloud.publicNet.ipv4 ? primaryPrice("ipv4") : 0;
-    const ipv6 = config.hcloud.publicNet.ipv6 ? primaryPrice("ipv6") : 0;
-    const hourlyPoolEur = (serverHourly + ipv4 + ipv6) * config.pool.maxSize;
-    const maximumEligibilityEur =
-      hourlyPoolEur * (config.pool.maximumLifetimeSeconds / 3600);
+      config.hcloud.location,
+      "ipv4",
+      config.hcloud.publicNet.ipv4,
+    );
+    const ipv6 = publicIpHourlyPrice(
+      pricingRoot.primary_ips,
+      config.hcloud.location,
+      "ipv6",
+      config.hcloud.publicNet.ipv6,
+    );
+    const hourlyPoolEur = poolHourlyCost(serverHourly, ipv4, ipv6, config.pool.maxSize);
+    const maximumEligibilityEur = maximumEligibilityCost(
+      hourlyPoolEur,
+      config.pool.maximumLifetimeSeconds,
+    );
     if (hourlyPoolEur > config.pool.maxKnownHourlyPoolCostEur)
       throw new SafeRefusal("known hourly pool cost exceeds configured cap");
     if (maximumEligibilityEur > config.pool.maxKnownEligibilityCostEur)

@@ -35,6 +35,10 @@ describe("runner settings screen", () => {
     expect(draft.startOnLoad).toBe(true);
     screen.handleInput("\u001b");
     expect(actions).toContain("discard");
+    const guidedScreen = new RunnerSettingsScreen(settings(), JSON.stringify(settings()), theme, action => actions.push(action.id));
+    guidedScreen.settingsList.selectItem("guided-setup");
+    guidedScreen.handleInput(" ");
+    expect(actions).toContain("guided-setup");
     const mouseDraft = settings();
     const mouseScreen = new RunnerSettingsScreen(mouseDraft, JSON.stringify(mouseDraft), theme, () => undefined);
     mouseScreen.render(80);
@@ -107,6 +111,22 @@ describe("runner settings screen", () => {
     expect(notify).toHaveBeenCalledTimes(4);
     await expect(readFile(configPath, "utf8")).resolves.toContain('"name": "renamed"');
     await expect(readFile(configPath, "utf8")).resolves.toContain('"quantity": 0');
+  });
+
+  it("confirms discard before navigating an unsaved advanced fallback draft", async () => {
+    const root = await mkdtemp(join(tmpdir(), "runner-screen-"));
+    await mkdir(join(root, ".pi"));
+    const configPath = join(root, ".pi/github-runners.json");
+    await writeFile(configPath, JSON.stringify({ startOnLoad: false }));
+    const navigation = vi.fn(async () => false);
+    let settingsMenuCalls = 0;
+    const ctx = { hasUI: true, mode: "plain", ui: {
+      select: async (title: string) => title === "Runner pool scope" ? "global" : settingsMenuCalls++ === 0 ? "Scope: local repository pool" : "Guided setup (scope, pools, quantities, infrastructure, costs)",
+      input: async () => undefined, editor: async () => undefined, confirm: async () => true, notify: () => undefined,
+    } };
+    expect(await configureRunners(ctx, { root, repository: "acme/widgets" }, { onGuidedSetup: navigation })).toBe(false);
+    expect(navigation).toHaveBeenCalledOnce();
+    expect(await readFile(configPath, "utf8")).toContain('"startOnLoad":false');
   });
 
   it("discards a mutated native draft without persistence", async () => {
