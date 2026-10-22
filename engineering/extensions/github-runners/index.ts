@@ -12,6 +12,7 @@ import { loadPolicy } from "./src/config.js";
 import { planFingerprint, runCli } from "./src/cli.js";
 import { applyBulkPlans, bulkPreviewText, bulkScope, decodeRemoteBulk, prepareBulkPlans, type BulkResult } from "./bulk.js";
 import { installReaper, reaperInstallationId, reaperStatus, requestReaper, uninstallReaper, type ReaperRequest } from "./remote-reaper.js";
+import { selectSshTarget } from "./ssh-hosts.js";
 
 const usage = "Usage: /runners [status|refresh|ensure|reconcile|drain|destroy|reaper install|reaper status|reaper uninstall] [--policy <path-or-selected-policy>] [--capacity N] [--instance UUID|--all] [--apply]";
 const operations = new Set(["status", "refresh", "ensure", "reconcile", "drain", "destroy"]);
@@ -165,7 +166,7 @@ async function manageReaper(ctx: ExtensionCommandContext, action: "install" | "s
   if (action === "status") { if (!settings.reaper) throw new Error("no reaper is installed for these settings"); output(ctx, await reaperStatus(settings.reaper)); return; }
   if (action === "install") {
     if (!ctx.hasUI || ctx.mode !== "tui") throw new Error("reaper installation requires an interactive TUI session");
-    const sshTarget = await ctx.ui.input("SSH target (existing authenticated alias or user@host)"); if (!sshTarget) return;
+    const sshTarget = await selectSshTarget(ctx.ui); if (!sshTarget) return;
     const environmentFile = await ctx.ui.input("Private remote EnvironmentFile absolute path (already provisioned; no token will be copied)"); if (!environmentFile) return;
     if (settings.reaper && (settings.reaper.sshTarget !== sshTarget || settings.reaper.installationId !== reaperInstallationId(binding, settings))) throw new Error("a different remote reaper is installed; uninstall it explicitly before changing its SSH host or installation scope");
     if (!await ctx.ui.confirm("Install remote reaper?", `This installs a systemd user service on ${sshTarget}. Stop the old controller first: it must be the sole writer. No token will be copied; ${environmentFile} must already exist remotely.`)) return;

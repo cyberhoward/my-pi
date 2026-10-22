@@ -110,7 +110,9 @@ Use the TUI commands:
 /runners reaper uninstall
 ```
 
-Install asks for an existing trusted Linux SSH alias (or `user@host`) and an already-provisioned absolute environment-file path. Remote preflight requires Node >=22.19, npm, `flock`, working user `systemd`, and user lingering. The environment file must be a regular, owner-owned `0600` file with literal `KEY=value` lines, containing at least:
+Install lists literal safe aliases from `~/.ssh/config` (including readable exact/glob `Include` files) plus **Enter manually…**. It passes the chosen alias unchanged to SSH, so its `HostName`, `User`, `IdentityFile`, and `ProxyJump` settings remain effective. If no aliases can be read, enter an existing alias or `user@host` manually.
+
+Reading the list does not authenticate or contact a host. Only after the environment-file entry and install confirmation does remote preflight connect with normal SSH configuration: the current shell's SSH agent or default identity keys are used. SSH runs with `BatchMode=yes`, so it will not prompt for a password or key passphrase; add an unlocked key to the agent first (for example, with `ssh-add`). Host-key verification remains enabled; verify an unknown host key manually with `ssh ALIAS` once if needed, and do not disable verification. SSH key authentication is separate from the GitHub and Hetzner credentials below. Remote preflight requires Node >=22.19, npm, `flock`, working user `systemd`, and user lingering. The environment file must be a regular, owner-owned `0600` file with literal `KEY=value` lines, containing at least:
 
 ```sh
 HCLOUD_TOKEN=...

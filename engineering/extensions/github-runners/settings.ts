@@ -3,6 +3,7 @@ import { access, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { constants } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
+import { safeSshTargetPattern } from "./ssh-hosts.js";
 
 export interface RunnerSize {
   name: string;
@@ -118,7 +119,7 @@ function parseReaper(value: unknown): ReaperSettings {
   const sshTarget = string(record.sshTarget, "reaper.sshTarget");
   const installationId = string(record.installationId, "reaper.installationId");
   const environmentFile = string(record.environmentFile, "reaper.environmentFile");
-  if (!/^(?:[A-Za-z0-9_.-]+@)?[A-Za-z0-9][A-Za-z0-9.-]*$/.test(sshTarget)) throw new Error("reaper.sshTarget must be a safe SSH alias or user@host");
+  if (!safeSshTargetPattern.test(sshTarget)) throw new Error("reaper.sshTarget must be a safe SSH alias or user@host");
   if (!/^[a-f0-9]{16}$/.test(installationId)) throw new Error("reaper.installationId must be a 16-character lowercase hash");
   if (!isAbsolute(environmentFile) || /[\u0000-\u001f\u007f]/.test(environmentFile) || environmentFile.split("/").includes("..")) throw new Error("reaper.environmentFile must be an absolute safe path");
   return { sshTarget, installationId, environmentFile };

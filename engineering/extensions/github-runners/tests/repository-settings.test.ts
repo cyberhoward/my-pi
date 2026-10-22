@@ -50,6 +50,12 @@ describe("settings", () => {
     const active = { ...draft, sizes: [{ ...draft.sizes[0], quantity: 1 }] };
     expect(automationErrors(active).join(" ")).toMatch(/Hetzner.*pinned.*cost/i);
   });
+  it("accepts safe SSH aliases containing underscores for an installed reaper", async () => {
+    const root = await mkdtemp(join(tmpdir(), "runner-settings-"));
+    await mkdir(join(root, ".pi"));
+    await writeFile(join(root, ".pi/github-runners.json"), JSON.stringify({ reaper: { sshTarget: "controller_alias", installationId: "0123456789abcdef", environmentFile: "/private.env" } }));
+    await expect(loadSettings(root)).resolves.toMatchObject({ reaper: { sshTarget: "controller_alias" } });
+  });
   it("stores global settings globally and leaves only the local mode selection", async () => {
     const root = await mkdtemp(join(tmpdir(), "runner-settings-"));
     const home = await mkdtemp(join(tmpdir(), "runner-home-"));
