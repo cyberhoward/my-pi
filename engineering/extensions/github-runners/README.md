@@ -30,9 +30,9 @@ The extension operates only when the current directory has one exact `github.com
 /runners destroy --all [--policy NAME_OR_PATH] [--apply]
 ```
 
-`/runners` opens the command/settings menu in the TUI. `status` observes the configured policy/pool; without a policy it reports the GitHub runner inventory. `refresh` is local read-only monitoring. `ensure` is a bounded desired-capacity request, `reconcile` follows the policy, `drain` starts safe draining of one owned instance, and `destroy` first drains then later probes/removes it when safe. `--instance` is required for `drain`; `destroy` requires either `--instance` or `--all`, never both. `--capacity` is only for `ensure`; `--policy` selects a named/materialized policy.
+`/runners` opens the command/settings menu in the TUI. Its native searchable settings list supports inline cycles, restores selection after an edit, and offers explicit **Save changes** and **Discard changes** actions. Saving enabled local automation stops/rebinds the current loop and starts it again, so it can immediately reconcile or create billable capacity; it does not redeploy a remote controller snapshot. `status` observes the configured policy/pool; without a policy it reports the GitHub runner inventory. `refresh` is local read-only monitoring. `ensure` is a bounded desired-capacity request, `reconcile` follows the policy, `drain` starts safe draining of one owned instance, and `destroy` first drains then later probes/removes it when safe. `--instance` is required for `drain`; `destroy` requires either `--instance` or `--all`, never both. `--capacity` is only for `ensure`; `--policy` selects a named/materialized policy.
 
-Management is plan-first. `--apply` is allowed only in an interactive TUI, requires a warning-free unchanged plan, two confirmations (including sole-controller confirmation), policy `mutation.enabled: true`, and `RUNNER_MANAGER_ALLOW_MUTATIONS=1`. Without all of them it does not mutate. Single-instance apply operations require an explicit `--policy` when multiple policies exist.
+Management is plan-first. `--apply` is allowed only in an interactive TUI and requires a warning-free unchanged plan, two confirmations (including sole-controller confirmation), and policy `mutation.enabled: true`. Without all of them it does not mutate. Single-instance apply operations require an explicit `--policy` when multiple policies exist.
 
 `destroy --all` previews every configured policy for the active repository, or only the policy selected with `--policy`. In shared-organization mode it affects the configured shared pool and its allowlisted repositories, which are displayed before confirmation. It never means all servers in a Hetzner project. Only conclusively owned instances and stale offline registrations are eligible; ownership ambiguity refuses teardown.
 
@@ -94,7 +94,7 @@ Legacy YAML policies remain supported, including the legacy API identity profile
 
 ## Automation and credentials
 
-When `automationEnabled` is true **and** `RUNNER_MANAGER_ALLOW_MUTATIONS=1` is present, automation watches every configured local repo or global allowlisted repo. Queued, in-progress, waiting, pending, or requested workflow activity can ensure the pool; idle pools reconcile only after standby expiry. Any unavailable/incomplete activity result fails closed: it skips mutation rather than assuming idle.
+When `automationEnabled` is true, automation watches every configured local repo or global allowlisted repo. Queued, in-progress, waiting, pending, or requested workflow activity can ensure the pool; idle pools reconcile only after standby expiry. Any unavailable/incomplete activity result fails closed: it skips mutation rather than assuming idle.
 
 `startOnLoad` is a one-time prewarm per policy/startup, not a permanent minimum. The prewarmed runner subsequently expires through normal standby/reconciliation. Closing Pi stops this session-only automation and cleanup, so a remote controller is advised for unattended operation.
 
@@ -117,7 +117,6 @@ Reading the list does not authenticate or contact a host. Only after the environ
 ```sh
 HCLOUD_TOKEN=...
 RUNNER_MANAGER_GITHUB_TOKEN=...
-RUNNER_MANAGER_ALLOW_MUTATIONS=1
 ```
 
 No credentials are copied: the installer ships compiled code and an authoritative configuration snapshot, then installs a user systemd service. Do not run a second local controller; one host/controller must be the sole writer for a pool. Local file locks serialize only that host—they are not distributed coordination.

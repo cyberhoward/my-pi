@@ -60,7 +60,9 @@ it("refuses an apply when the confirmation fingerprint changed under the lock", 
     policy.spec.runner.archiveSha256 = "a".repeat(64);
   }));
   const output = io();
-  expect(await runCli(["reconcile", "--apply", "--config", path], { ...env, RUNNER_MANAGER_ALLOW_MUTATIONS: "1" }, output, offlineFetch() as typeof fetch, { expectedPlanFingerprint: "stale" })).toBe(3);
+  const fetcher = offlineFetch();
+  expect(await runCli(["reconcile", "--apply", "--config", path], env, output, fetcher as typeof fetch, { expectedPlanFingerprint: "stale" })).toBe(3);
+  expect(fetcher).toHaveBeenCalled();
   expect(output.stderr.mock.calls[0][0]).toContain("plan changed since confirmation");
 });
 it("maps usage and credential refusals", async () => {
@@ -90,7 +92,7 @@ it.each([
     await runCli([command, "--config", testPolicyPath], env, io(), offlineFetch() as typeof fetch),
   ).toBe(2);
 });
-it("requires the environment mutation gate before any apply inventory call", async () => {
+it("refuses policy-disabled apply before any inventory call", async () => {
   const fetcher = offlineFetch();
   expect(
     await runCli(["reconcile", "--apply", "--config", testPolicyPath], env, io(), fetcher as typeof fetch),
@@ -207,10 +209,23 @@ it("destroy --all is empty and does not bypass confirmation fingerprint fencing"
   const directory = await mkdtemp(join(tmpdir(), "bulk-fingerprint-")); const path = join(directory, "policy.yaml");
   await writeFile(path, validPolicyYaml(policy => { policy.spec.mutation.enabled = true; policy.spec.coordination.lockPath = join(directory, "controller.lock"); policy.spec.hetzner.serverType = "cx23"; policy.spec.hetzner.location = "fsn1"; policy.spec.hetzner.firewallId = "1"; policy.spec.runner.version = "2.999.0"; policy.spec.runner.archiveSha256 = "a".repeat(64); }));
   const fetcher = offlineFetch(); const refused = io();
-  expect(await runCli(["destroy", "--all", "--apply", "--config", path], { ...env, RUNNER_MANAGER_ALLOW_MUTATIONS: "1" }, refused, fetcher as typeof fetch, { expectedPlanFingerprint: "changed" })).toBe(3);
+  expect(await runCli(["destroy", "--all", "--apply", "--config", path], env, refused, fetcher as typeof fetch, { expectedPlanFingerprint: "changed" })).toBe(3);
   expect(refused.stderr.mock.calls[0][0]).toContain("plan changed since confirmation");
   expect(fetcher.mock.calls.every(call => !(call[1] as RequestInit | undefined)?.method || (call[1] as RequestInit).method === "GET")).toBe(true);
   await rm(directory, { recursive: true, force: true });
+});
+it("applies a policy-approved no-op inventory without an environment mutation gate", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "apply-no-op-")); const path = join(directory, "policy.yaml");
+  await writeFile(path, validPolicyYaml(policy => { policy.spec.mutation.enabled = true; policy.spec.coordination.lockPath = join(directory, "controller.lock"); policy.spec.hetzner.serverType = "cx23"; policy.spec.hetzner.location = "fsn1"; policy.spec.hetzner.firewallId = "1"; policy.spec.runner.version = "2.999.0"; policy.spec.runner.archiveSha256 = "a".repeat(64); }));
+  try {
+    const preview = io(); const previewFetch = offlineFetch();
+    expect(await runCli(["destroy", "--all", "--config", path], env, preview, previewFetch as typeof fetch)).toBe(0);
+    const plan = JSON.parse(preview.stdout.mock.calls[0][0]).plan;
+    const applied = io(); const applyFetch = offlineFetch();
+    expect(await runCli(["destroy", "--all", "--apply", "--config", path], env, applied, applyFetch as typeof fetch, { expectedPlanFingerprint: planFingerprint(plan) })).toBe(0);
+    expect(applyFetch).toHaveBeenCalled();
+    expect(applyFetch.mock.calls.every(call => !(call[1] as RequestInit | undefined)?.method || (call[1] as RequestInit).method === "GET")).toBe(true);
+  } finally { await rm(directory, { recursive: true, force: true }); }
 });
 it("destroy first tick plans drain and a later tick plans probe", async () => {
   const instance = "11111111-1111-4111-8111-111111111111";

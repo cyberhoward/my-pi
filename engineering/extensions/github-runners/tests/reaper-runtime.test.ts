@@ -101,7 +101,7 @@ describe("reaper runtime", () => {
     const materialize = vi.fn();
     const activity = vi.fn(async () => ({ kind: "active" as const, lastActivity: new Date() }));
     const shutdown = await serveReaper(path, {
-      env: { RUNNER_MANAGER_ALLOW_MUTATIONS: "1", HCLOUD_TOKEN: "hcloud-from-file", RUNNER_MANAGER_GITHUB_TOKEN: "github-from-file" },
+      env: { HCLOUD_TOKEN: "hcloud-from-file", RUNNER_MANAGER_GITHUB_TOKEN: "github-from-file" },
       automation: (binding, servedSettings, status, hooks) => new RunnerAutomation(binding, servedSettings, status as (message: string | undefined) => void, { ...hooks, runCli: runCli as never, materialize: async () => { materialize(); return { policies: [{ name: "embedded", path: servedSettings.policies[0], sourcePath: servedSettings.policies[0] }], cleanup: async () => undefined }; }, activity }),
     }, { on: () => undefined, off: () => undefined, setInterval: (() => 1) as never, clearInterval: () => undefined });
     await vi.waitFor(() => expect(runCli).toHaveBeenCalledTimes(2));

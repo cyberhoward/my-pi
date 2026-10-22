@@ -28,8 +28,13 @@ describe("settings", () => {
   it("rejects invalid explicit configuration", async () => {
     const root = await mkdtemp(join(tmpdir(), "runner-settings-"));
     await mkdir(join(root, ".pi"));
-    await writeFile(join(root, ".pi/github-runners.json"), JSON.stringify({ command: "rm" }));
+    const settingsPath = join(root, ".pi/github-runners.json");
+    await writeFile(settingsPath, JSON.stringify({ command: "rm" }));
     await expect(loadSettings(root)).rejects.toThrow("unknown properties");
+    await writeFile(settingsPath, JSON.stringify({ sizes: null }));
+    await expect(loadSettings(root)).rejects.toThrow("sizes must be an array");
+    await writeFile(settingsPath, JSON.stringify({}));
+    await expect(loadSettings(root)).resolves.toMatchObject({ sizes: [] });
   });
   it("round-trips loaded absolute policy paths as root-relative paths", async () => {
     const root = await mkdtemp(join(tmpdir(), "runner-settings-"));

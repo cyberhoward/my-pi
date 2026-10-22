@@ -2,11 +2,7 @@
 import { createHash } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "./args.js";
-import {
-  assertLiveConfig,
-  assertMutationAllowed,
-  loadPolicy,
-} from "./config.js";
+import { assertLiveConfig, loadPolicy } from "./config.js";
 import { Executor } from "./executor.js";
 import { GitHubClient } from "./github.js";
 import { HCloudClient } from "./hcloud.js";
@@ -92,7 +88,6 @@ export async function runCli(
         throw new SafeRefusal(
           "policy mutation.enabled must be true for --apply",
         );
-      assertMutationAllowed(args, env);
     }
     const hcloudRaw = env[policy.credentials.hcloudTokenEnv];
     const githubRaw = env[policy.credentials.githubTokenEnv];

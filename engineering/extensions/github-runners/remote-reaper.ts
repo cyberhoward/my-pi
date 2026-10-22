@@ -92,7 +92,7 @@ systemctl --user show-environment >/dev/null
 [ -f "$env" ] && [ ! -L "$env" ]
 [ "$(stat -c %u "$env")" = "$(id -u)" ]
 [ "$(stat -c %a "$env")" = 600 ]
-awk 'BEGIN { h=0; g=0; m=0; ok=1 } /^[[:space:]]*($|#)/ { next } !/^[A-Za-z_][A-Za-z0-9_]*=.*/ { ok=0; next } /^HCLOUD_TOKEN=/ { h=1 } /^RUNNER_MANAGER_GITHUB_TOKEN=/ { g=1 } /^RUNNER_MANAGER_ALLOW_MUTATIONS=1$/ { m=1 } END { exit !(ok && h && g && m) }' "$env"
+awk 'BEGIN { h=0; g=0; ok=1 } /^[[:space:]]*($|#)/ { next } !/^[A-Za-z_][A-Za-z0-9_]*=.*/ { ok=0; next } /^HCLOUD_TOKEN=/ { h=1 } /^RUNNER_MANAGER_GITHUB_TOKEN=/ { g=1 } END { exit !(ok && h && g) }' "$env"
 base="$HOME/.local/share/pi-github-runners/$id"
 case "$env" in "$base"|"$base"/*) exit 21;; esac
 if [ -e "$base" ]; then [ -f "$base/.pi-reaper-owner" ] && [ "$(cat "$base/.pi-reaper-owner")" = "$id" ] || exit 22; fi

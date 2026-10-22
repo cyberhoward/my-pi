@@ -151,15 +151,6 @@ export function assertLiveConfig(config: RunnerManagerConfig): void {
   if (!/^[a-f0-9]{64}$/i.test(config.runner.archiveSha256))
     throw new SafeRefusal("runner archiveSha256 must be exact SHA-256");
 }
-export function assertMutationAllowed(
-  flags: { apply: boolean },
-  env: NodeJS.ProcessEnv,
-): void {
-  if (!flags.apply || env.RUNNER_MANAGER_ALLOW_MUTATIONS !== "1")
-    throw new SafeRefusal(
-      "mutations require --apply and RUNNER_MANAGER_ALLOW_MUTATIONS=1",
-    );
-}
 export async function loadPolicy(path: string) {
   if (extname(path).toLowerCase() === ".json")
     throw new UsageError(

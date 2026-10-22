@@ -16,15 +16,6 @@ describe("runner automation lifecycle", () => {
     expect(status).toHaveBeenCalledWith(expect.stringMatching(/enable.*automation/i));
     await automation.stop();
   });
-  it("reports a missing mutation gate at startup without materializing policies or calling core", async () => {
-    const run = vi.fn(); const materialize = vi.fn(); const status = vi.fn();
-    const automation = new RunnerAutomation(binding, { ...settings, startOnLoad: true }, status, { runCli: run as never, materialize: materialize as never, env: {} });
-    await automation.tick();
-    expect(materialize).not.toHaveBeenCalled();
-    expect(run).not.toHaveBeenCalled();
-    expect(status).toHaveBeenCalledWith(expect.stringMatching(/RUNNER_MANAGER_ALLOW_MUTATIONS=1/));
-    await automation.stop();
-  });
   it("does not mutate without an explicitly materialized configured pool", async () => {
     const run = vi.fn();
     const automation = new RunnerAutomation(binding, settings, () => undefined, { runCli: run as never, materialize: async () => ({ policies: [], cleanup: async () => undefined }) });
@@ -52,7 +43,7 @@ describe("runner automation lifecycle", () => {
       io.stdout(JSON.stringify({ plan, servers: [] }));
       return 0;
     });
-    const automation = new RunnerAutomation(binding, lifecycleSettings, () => undefined, { runCli: run as never, materialize: materializePolicies, env: { RUNNER_MANAGER_ALLOW_MUTATIONS: "1", HCLOUD_TOKEN: "token", RUNNER_MANAGER_GITHUB_TOKEN: "github" }, now: () => now, activity: async () => state === "active" ? { kind: "active", lastActivity: now } : { kind: "idle", lastActivity: new Date("2025-01-01T00:00:00Z") }, activityFloor: async () => new Date("2025-01-01T00:00:00Z") });
+    const automation = new RunnerAutomation(binding, lifecycleSettings, () => undefined, { runCli: run as never, materialize: materializePolicies, env: { HCLOUD_TOKEN: "token", RUNNER_MANAGER_GITHUB_TOKEN: "github" }, now: () => now, activity: async () => state === "active" ? { kind: "active", lastActivity: now } : { kind: "idle", lastActivity: new Date("2025-01-01T00:00:00Z") }, activityFloor: async () => new Date("2025-01-01T00:00:00Z") });
     await automation.tick();
     state = "active"; await automation.tick();
     state = "idle"; now = new Date("2025-01-10T00:02:00Z"); await automation.tick();
@@ -65,7 +56,7 @@ describe("runner automation lifecycle", () => {
   it("refuses all writes when activity is incomplete", async () => {
     const lifecycleSettings: RunnerSettings = { ...settings, sizes: [{ name: "small", labels: ["ci-small"], quantity: 1, serverType: "cpx11", location: "fsn1", image: "ubuntu-24.04", firewallId: "1", runnerVersion: "2.321.0", runnerArchiveSha256: "a".repeat(64), maxHourlyCostEur: 1, maxEligibilityCostEur: 1 }] };
     const run = vi.fn();
-    const automation = new RunnerAutomation(binding, lifecycleSettings, () => undefined, { runCli: run as never, materialize: materializePolicies, env: { RUNNER_MANAGER_ALLOW_MUTATIONS: "1", HCLOUD_TOKEN: "token", RUNNER_MANAGER_GITHUB_TOKEN: "github" }, activity: async () => ({ kind: "unknown", error: "GitHub activity pagination limit reached" }) });
+    const automation = new RunnerAutomation(binding, lifecycleSettings, () => undefined, { runCli: run as never, materialize: materializePolicies, env: { HCLOUD_TOKEN: "token", RUNNER_MANAGER_GITHUB_TOKEN: "github" }, activity: async () => ({ kind: "unknown", error: "GitHub activity pagination limit reached" }) });
     await automation.tick();
     expect(run).not.toHaveBeenCalled();
     await automation.stop();
@@ -79,18 +70,11 @@ describe("runner automation lifecycle", () => {
       if (args.includes("--apply")) { applying(); await held; }
       return 0;
     });
-    const automation = new RunnerAutomation(binding, lifecycleSettings, () => undefined, { runCli: run as never, materialize: materializePolicies, env: { RUNNER_MANAGER_ALLOW_MUTATIONS: "1", HCLOUD_TOKEN: "token", RUNNER_MANAGER_GITHUB_TOKEN: "github" }, activity: async () => ({ kind: "active" }) });
+    const automation = new RunnerAutomation(binding, lifecycleSettings, () => undefined, { runCli: run as never, materialize: materializePolicies, env: { HCLOUD_TOKEN: "token", RUNNER_MANAGER_GITHUB_TOKEN: "github" }, activity: async () => ({ kind: "active" }) });
     const tick = automation.tick(); await started;
     let stopped = false; const stopping = automation.stop().then(() => { stopped = true; });
     await Promise.resolve(); expect(stopped).toBe(false);
     release(); await Promise.all([tick, stopping]);
     expect(run.mock.calls.filter(([args]) => (args as string[]).includes("--apply"))).toHaveLength(1);
-  });
-  it("does not synthesize or inherit the operator mutation gate", async () => {
-    const prior = process.env.RUNNER_MANAGER_ALLOW_MUTATIONS; process.env.RUNNER_MANAGER_ALLOW_MUTATIONS = "1";
-    const run = vi.fn();
-    const automation = new RunnerAutomation(binding, settings, () => undefined, { env: {}, runCli: run as never, materialize: async () => ({ policies: [{ name: "configured", path: "/never-read.yaml", sourcePath: "/never-read.yaml" }], cleanup: async () => undefined }) });
-    await automation.tick(); expect(run).not.toHaveBeenCalled(); automation.stop();
-    if (prior === undefined) delete process.env.RUNNER_MANAGER_ALLOW_MUTATIONS; else process.env.RUNNER_MANAGER_ALLOW_MUTATIONS = prior;
   });
 });

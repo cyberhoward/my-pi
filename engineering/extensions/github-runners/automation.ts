@@ -80,7 +80,7 @@ export class RunnerAutomation {
     this.#controller = controller;
     try {
       const settings = this.settings as Settings;
-      const blocked = settings.automationEnabled !== true ? "runner automation startup is blocked: enable Automation in /runners settings" : this.#deps.env.RUNNER_MANAGER_ALLOW_MUTATIONS !== "1" ? "runner automation startup is blocked: set RUNNER_MANAGER_ALLOW_MUTATIONS=1 and restart Pi" : undefined;
+      const blocked = settings.automationEnabled !== true ? "runner automation startup is blocked: enable Automation in /runners settings" : undefined;
       if (blocked) {
         if (settings.startOnLoad && this.#current(generation, controller.signal)) { this.#reportedStatus = true; this.onStatus(blocked); }
         return;

@@ -102,6 +102,10 @@ function parseSize(value: unknown, index: number): RunnerSize {
   if (!size.serverType || !size.location || !size.image || !size.firewallId || !size.runnerVersion || !size.runnerArchiveSha256) throw new Error(`sizes[${index}] must contain a complete active runner size mapping`);
   return size;
 }
+export function parseRunnerSizes(value: unknown): RunnerSize[] {
+  if (!Array.isArray(value)) throw new Error("sizes must be an array");
+  return value.map(parseSize);
+}
 function parseOrganization(value: unknown): OrganizationSettings {
   const record = object(value, "organization must be an object");
   const fields = ["name", "repositories", "runnerGroupId", "runnerGroupName"];
@@ -139,8 +143,7 @@ function parseSettings(value: unknown, root: string, sourcePath: string): Runner
   const standbyMinutes = record.standbyMinutes === undefined ? 15 : boundedInteger(record.standbyMinutes, "standbyMinutes", 1, 24 * 60);
   if (record.startOnLoad !== undefined && typeof record.startOnLoad !== "boolean") throw new Error("startOnLoad must be boolean");
   if (record.automationEnabled !== undefined && typeof record.automationEnabled !== "boolean") throw new Error("automationEnabled must be boolean");
-  if (record.sizes !== undefined && !Array.isArray(record.sizes)) throw new Error("sizes must be an array");
-  return { mode, policies, pollIntervalSeconds, standbyMinutes, startOnLoad: record.startOnLoad ?? false, automationEnabled: record.automationEnabled ?? false, organization: record.organization === undefined ? undefined : parseOrganization(record.organization), reaper: record.reaper === undefined ? undefined : parseReaper(record.reaper), sizes: (record.sizes ?? []).map(parseSize), sourcePath };
+  return { mode, policies, pollIntervalSeconds, standbyMinutes, startOnLoad: record.startOnLoad ?? false, automationEnabled: record.automationEnabled ?? false, organization: record.organization === undefined ? undefined : parseOrganization(record.organization), reaper: record.reaper === undefined ? undefined : parseReaper(record.reaper), sizes: parseRunnerSizes(record.sizes === undefined ? [] : record.sizes), sourcePath };
 }
 async function exists(path: string): Promise<boolean> { try { await access(path, constants.R_OK); return true; } catch { return false; } }
 async function read(path: string, root: string): Promise<RunnerSettings> {

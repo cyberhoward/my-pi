@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { renderCloudInit } from "../cloud-init.js";
-import { assertMutationAllowed, parseConfig } from "../config.js";
+import { parseConfig } from "../config.js";
 import { configHash, runnerName, slotName } from "../identity.js";
 import { planReconcile as reconcileProduction } from "../policy.js";
 import { Redactor } from "../redaction.js";
@@ -81,11 +81,6 @@ function planReconcile(
   );
 }
 describe("configuration safety", () => {
-  it("requires both mutation gates", () => {
-    expect(() => assertMutationAllowed({ apply: true }, {})).toThrow(
-      "RUNNER_MANAGER_ALLOW_MUTATIONS=1",
-    );
-  });
   it("enforces the hard pool ceiling and quiescence", () => {
     expect(() =>
       parseConfig({ ...config, pool: { ...config.pool, maxSize: 4 } }),

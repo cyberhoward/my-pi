@@ -23,6 +23,12 @@ async function shell(script: string, input: Buffer, env: NodeJS.ProcessEnv): Pro
     child.stdin.end(input);
   });
 }
+async function shellExit(script: string, env: NodeJS.ProcessEnv): Promise<number> {
+  return await new Promise<number>((resolve, reject) => {
+    const child = spawn("sh", ["-c", script], { env, stdio: ["ignore", "ignore", "ignore"] });
+    child.once("error", reject); child.once("close", (code) => resolve(code ?? 1));
+  });
+}
 async function archive(directory: string): Promise<Buffer> {
   await mkdir(join(directory, "dist"), { recursive: true });
   await Promise.all([writeFile(join(directory, "package.json"), "{}"), writeFile(join(directory, "package-lock.json"), "{}"), writeFile(join(directory, "config.json"), "{}"), writeFile(join(directory, "dist/reaper-cli.js"), "")]);
@@ -68,6 +74,23 @@ describe("remote reaper installer", () => {
     expect(fake.calls[1].command).toContain("systemctl --user start");
     expect(fake.calls[1].command).toContain("serve --config");
     expect(fake.calls[1].command).not.toContain("EnvironmentFile=");
+  });
+
+  it("accepts credentials-only literal environment files in preflight validation", async () => {
+    const fake = transport();
+    await installReaper(binding, settings, { sshTarget: "controller", environmentFile: "/private.env" }, { transport: fake.run, pack: async () => Buffer.from("archive") });
+    const awk = fake.calls[0].command.match(/awk[\s\S]*? "\$env"/)?.[0]?.replaceAll("'\\''", "'");
+    expect(awk).toBeDefined();
+    const directory = await mkdtemp(join(tmpdir(), "reaper-preflight-"));
+    try {
+      const file = join(directory, "env");
+      await writeFile(file, "HCLOUD_TOKEN=hcloud\nRUNNER_MANAGER_GITHUB_TOKEN=github\n", { mode: 0o600 });
+      expect(await shellExit(awk!, { ...process.env, env: file })).toBe(0);
+      await writeFile(file, "HCLOUD_TOKEN=hcloud\n", { mode: 0o600 });
+      expect(await shellExit(awk!, { ...process.env, env: file })).not.toBe(0);
+      await writeFile(file, "HCLOUD_TOKEN=hcloud\nnot an env line\nRUNNER_MANAGER_GITHUB_TOKEN=github\n", { mode: 0o600 });
+      expect(await shellExit(awk!, { ...process.env, env: file })).not.toBe(0);
+    } finally { await rm(directory, { recursive: true, force: true }); }
   });
 
   it("round-trips mixed active and disabled size drafts through the remote payload", async () => {
