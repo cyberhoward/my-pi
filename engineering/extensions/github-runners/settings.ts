@@ -184,13 +184,16 @@ export async function saveSettings(root: string, settings: RunnerSettings, paths
 }
 export function automationErrors(settings: RunnerSettings): string[] {
   const errors: string[] = [];
-  const active = settings.sizes.filter((size) => size.quantity > 0);
-  if (!active.length) errors.push("at least one runner size with quantity above zero is required");
-  for (const size of active) {
-    if (!size.name || !size.labels.length || size.labels.some((label) => !label.trim())) errors.push(`${size.name || "runner size"} requires custom routing labels`);
-    if (!/^(cx|cpx|ccx)[0-9]+$/.test(size.serverType) || !size.location || !size.image || !/^[1-9]\d*$/.test(size.firewallId)) errors.push(`${size.name || "runner size"} requires a complete Hetzner server, location, image, and firewall mapping`);
-    if (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,62}$/.test(size.runnerVersion) || !/^[a-f0-9]{64}$/i.test(size.runnerArchiveSha256)) errors.push(`${size.name || "runner size"} requires a pinned runner version and SHA-256`);
-    if (!(size.maxHourlyCostEur > 0) || !(size.maxEligibilityCostEur > 0)) errors.push(`${size.name || "runner size"} requires positive cost limits`);
+  if (settings.policies.length && settings.sizes.length) errors.push("configure either legacy policies or generated runner sizes, not both");
+  if (!settings.policies.length) {
+    const active = settings.sizes.filter((size) => size.quantity > 0);
+    if (!active.length) errors.push("at least one runner size with quantity above zero is required");
+    for (const size of active) {
+      if (!size.name || !size.labels.length || size.labels.some((label) => !label.trim())) errors.push(`${size.name || "runner size"} requires custom routing labels`);
+      if (!/^(cx|cpx|ccx)[0-9]+$/.test(size.serverType) || !size.location || !size.image || !/^[1-9]\d*$/.test(size.firewallId)) errors.push(`${size.name || "runner size"} requires a complete Hetzner server, location, image, and firewall mapping`);
+      if (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,62}$/.test(size.runnerVersion) || !/^[a-f0-9]{64}$/i.test(size.runnerArchiveSha256)) errors.push(`${size.name || "runner size"} requires a pinned runner version and SHA-256`);
+      if (!(size.maxHourlyCostEur > 0) || !(size.maxEligibilityCostEur > 0)) errors.push(`${size.name || "runner size"} requires positive cost limits`);
+    }
   }
   if (settings.mode === "global" && (!settings.organization || !settings.organization.name || !settings.organization.repositories.length || !settings.organization.runnerGroupId || !settings.organization.runnerGroupName)) errors.push("global automation requires organization name, repository allowlist, and runner group");
   return errors;

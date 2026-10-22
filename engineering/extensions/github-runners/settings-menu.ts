@@ -1,5 +1,7 @@
 import type { RepositoryBinding } from "./repository.js";
 import { automationErrors, loadSettings, saveSettings, type RunnerSettings } from "./settings.js";
+import { materializePolicies } from "./policies.js";
+import { assertLiveConfig, loadPolicy } from "./src/config.js";
 
 type MenuContext = {
   hasUI?: boolean;
@@ -22,6 +24,17 @@ const sizeTemplate = [{
 function notice(ctx: MenuContext, message: string, type: "info" | "warning" | "error" = "info"): void { ctx.ui.notify?.(message, type); }
 function clone(settings: RunnerSettings): RunnerSettings { return JSON.parse(JSON.stringify(settings)) as RunnerSettings; }
 function parseList(value: string): string[] { return [...new Set(value.split(/[,\n]/).map((item) => item.trim().toLowerCase()).filter(Boolean))].sort((left, right) => left.localeCompare(right)); }
+async function validateAutomation(binding: RepositoryBinding, settings: RunnerSettings): Promise<void> {
+  const materialized = await materializePolicies(binding, { ...settings, automationEnabled: true });
+  try {
+    if (!materialized.policies.length) throw new Error("no runner policies are configured");
+    for (const policy of materialized.policies) {
+      const loaded = await loadPolicy(policy.path);
+      if (!loaded.mutationEnabled) throw new Error(`${policy.name} must explicitly enable mutations`);
+      assertLiveConfig(loaded.config);
+    }
+  } finally { await materialized.cleanup(); }
+}
 
 export async function configureRunners(ctx: MenuContext, binding: RepositoryBinding): Promise<boolean> {
   if (!ctx.hasUI) { notice(ctx, "Runner settings require an interactive TUI", "warning"); return false; }
@@ -79,16 +92,20 @@ export async function configureRunners(ctx: MenuContext, binding: RepositoryBind
       else {
         const errors = automationErrors(settings);
         if (errors.length) { notice(ctx, `Cannot enable automation:\n${errors.join("\n")}`, "error"); continue; }
+        try { await validateAutomation(binding, settings); }
+        catch (error) { notice(ctx, `Cannot enable automation:\n${error instanceof Error ? error.message : "runner policies could not be validated"}`, "error"); continue; }
         const confirmed = await ctx.ui.confirm("Enable runner automation?", "This can incur cloud costs. Confirm workflow routing uses each size's custom labels, this session is the single writer, and any remote controller has been stopped. RUNNER_MANAGER_ALLOW_MUTATIONS is never created for you.");
         if (confirmed) settings.automationEnabled = true;
       }
     } else if (choice.startsWith("Remote reaper:")) {
       notice(ctx, settings.reaper ? "The installed controller keeps its authoritative configuration. After local changes, explicitly repeat /runners reaper install for the same host and scope; uninstall first only when switching host or scope. This does not deploy automatically." : "Use /runners reaper install to configure a remote controller.", "warning");
     } else if (choice === "Save and close") {
-      if (settings.reaper && JSON.stringify(settings) !== original && !await ctx.ui.confirm("Save local settings?", "The installed remote controller will not change. Explicitly repeat /runners reaper install on the same host and scope to apply these settings; saving does not deploy automatically.")) continue;
+      const changed = JSON.stringify(settings) !== original;
+      if (!changed) return false;
+      if (settings.reaper && !await ctx.ui.confirm("Save local settings?", "The installed remote controller will not change. Explicitly repeat /runners reaper install on the same host and scope to apply these settings; saving does not deploy automatically.")) continue;
       try { await saveSettings(binding.root, settings); }
       catch (error) { notice(ctx, error instanceof Error ? error.message : "Could not save runner settings", "error"); continue; }
-      return JSON.stringify(settings) !== original;
+      return true;
     }
   }
 }

@@ -7,6 +7,24 @@ const settings: RunnerSettings = { mode: "local", policies: [], pollIntervalSeco
 const binding = { root: "/repo", repository: "owner/repo" };
 
 describe("runner automation lifecycle", () => {
+  it("reports disabled automation startup without materializing policies or calling core", async () => {
+    const run = vi.fn(); const materialize = vi.fn(); const status = vi.fn();
+    const automation = new RunnerAutomation(binding, { ...settings, automationEnabled: false, startOnLoad: true }, status, { runCli: run as never, materialize: materialize as never });
+    await automation.tick();
+    expect(materialize).not.toHaveBeenCalled();
+    expect(run).not.toHaveBeenCalled();
+    expect(status).toHaveBeenCalledWith(expect.stringMatching(/enable.*automation/i));
+    await automation.stop();
+  });
+  it("reports a missing mutation gate at startup without materializing policies or calling core", async () => {
+    const run = vi.fn(); const materialize = vi.fn(); const status = vi.fn();
+    const automation = new RunnerAutomation(binding, { ...settings, startOnLoad: true }, status, { runCli: run as never, materialize: materialize as never, env: {} });
+    await automation.tick();
+    expect(materialize).not.toHaveBeenCalled();
+    expect(run).not.toHaveBeenCalled();
+    expect(status).toHaveBeenCalledWith(expect.stringMatching(/RUNNER_MANAGER_ALLOW_MUTATIONS=1/));
+    await automation.stop();
+  });
   it("does not mutate without an explicitly materialized configured pool", async () => {
     const run = vi.fn();
     const automation = new RunnerAutomation(binding, settings, () => undefined, { runCli: run as never, materialize: async () => ({ policies: [], cleanup: async () => undefined }) });

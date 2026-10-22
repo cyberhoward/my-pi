@@ -187,6 +187,7 @@ async function manageReaper(ctx: ExtensionCommandContext, action: "install" | "s
 }
 export default function (pi: ExtensionAPI): void {
   let monitor: RunnerMonitor | undefined; let automation: RunnerAutomation | undefined; let activeKey: string | undefined; let status: MonitorState = { kind: "unknown", error: "not refreshed" }; let startupSent = false;
+  const automationNotifications = new Map<string, Set<string>>();
   const show = (ctx: { ui: { setStatus(key: string, text: string | undefined): void } }) => ctx.ui.setStatus("github-runners", footerText(status));
   const stop = async (): Promise<void> => {
     const previousMonitor = monitor; const previousAutomation = automation;
@@ -203,7 +204,16 @@ export default function (pi: ExtensionAPI): void {
       const settings = await loadSettings(binding.root); activeKey = key;
       monitor = new RunnerMonitor(binding.repository, settings.pollIntervalSeconds * 1000, (next) => { status = next; show(ctx); }, settings.mode === "global" ? settings.organization?.name : undefined);
       if (settings.reaper) { if (settings.startOnLoad && !startupSent) { startupSent = true; void requestReaper(settings.reaper, { operation: "startup" }).catch((error) => { status = { kind: "unknown", error: error instanceof Error ? error.message : "remote reaper startup failed" }; show(ctx); }); } }
-      else automation = new RunnerAutomation(binding, settings, (message) => { if (message) { status = { kind: "unknown", error: message }; show(ctx); } });
+      else automation = new RunnerAutomation(binding, settings, (message) => {
+        const previous = automationNotifications.get(key!);
+        if (message) {
+          status = { kind: "unknown", error: message }; show(ctx);
+          if (!previous?.has(message)) { const messages = previous ?? new Set<string>(); messages.add(message); automationNotifications.set(key!, messages); ctx.ui.notify(message, "warning"); }
+        } else if (previous?.size) {
+          automationNotifications.delete(key!);
+          ctx.ui.notify("GitHub runner automation recovered", "info");
+        }
+      });
       show(ctx); monitor.start(); automation?.start();
     } catch (error) { status = { kind: "unknown", error: error instanceof Error ? error.message : "settings failed" }; show(ctx); }
   };

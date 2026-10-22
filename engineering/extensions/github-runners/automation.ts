@@ -79,6 +79,12 @@ export class RunnerAutomation {
     const controller = new AbortController();
     this.#controller = controller;
     try {
+      const settings = this.settings as Settings;
+      const blocked = settings.automationEnabled !== true ? "runner automation startup is blocked: enable Automation in /runners settings" : this.#deps.env.RUNNER_MANAGER_ALLOW_MUTATIONS !== "1" ? "runner automation startup is blocked: set RUNNER_MANAGER_ALLOW_MUTATIONS=1 and restart Pi" : undefined;
+      if (blocked) {
+        if (settings.startOnLoad && this.#current(generation, controller.signal)) { this.#reportedStatus = true; this.onStatus(blocked); }
+        return;
+      }
       const result = await this.#deps.materialize(this.binding, this.settings);
       try {
         for (const policy of result.policies) {
@@ -87,8 +93,8 @@ export class RunnerAutomation {
         }
       } finally { await result.cleanup(); }
       if (!this.#stopped && generation === this.#generation && !this.#reportedStatus) this.onStatus(undefined);
-    } catch (error) {
-      if (!this.#stopped && generation === this.#generation) this.onStatus(error instanceof Error ? error.message : "runner automation failed");
+    } catch {
+      if (!this.#stopped && generation === this.#generation) this.onStatus("runner automation failed; inspect runner settings and credentials");
     } finally {
       if (this.#controller === controller) this.#controller = undefined;
       this.#running = false;
@@ -116,13 +122,16 @@ export class RunnerAutomation {
   #current(generation: number, signal: AbortSignal): boolean { return !this.#stopped && generation === this.#generation && !signal.aborted; }
   async #ensure(policy: MaterializedPolicy, env: NodeJS.ProcessEnv, capacity: number, signal: AbortSignal, generation: number): Promise<boolean> {
     const dry = await this.#call(["ensure", "--capacity", String(capacity), "--config", policy.path], env);
-    if (!this.#current(generation, signal) || dry.code || !dry.result?.plan || dry.result.plan.warnings?.length) return false;
+    if (!this.#current(generation, signal)) return false;
+    if (dry.code || !dry.result?.plan || dry.result.plan.warnings?.length) { this.#reportedStatus = true; this.onStatus("runner automation ensure preview failed; no changes were applied"); return false; }
     const applied = await this.#call(["ensure", "--capacity", String(capacity), "--config", policy.path, "--apply"], env, fingerprint(dry.result.plan));
-    return this.#current(generation, signal) && applied.code === 0;
+    if (!this.#current(generation, signal) || applied.code === 0) return this.#current(generation, signal) && applied.code === 0;
+    this.#reportedStatus = true; this.onStatus("runner automation ensure failed; inspect runner settings and credentials");
+    return false;
   }
   async #reconcile(policy: MaterializedPolicy, signal: AbortSignal, generation: number): Promise<void> {
     const settings = this.settings as Settings;
-    if (!settings.automationEnabled || this.#deps.env.RUNNER_MANAGER_ALLOW_MUTATIONS !== "1" || !this.#current(generation, signal)) return;
+    if (!this.#current(generation, signal)) return;
     const credentials = await this.#credentials(policy, signal);
     if (!credentials || !this.#current(generation, signal)) { if (this.#current(generation, signal)) { this.#reportedStatus = true; this.onStatus("runner automation is waiting for credentials"); } return; }
     const repositories = settings.mode === "global" ? settings.organization?.repositories ?? [] : [this.binding.repository];

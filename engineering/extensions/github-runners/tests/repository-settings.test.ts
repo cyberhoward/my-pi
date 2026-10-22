@@ -41,6 +41,11 @@ describe("settings", () => {
     await expect(loadSettings(root)).resolves.toMatchObject({ policies: [join(root, "tools/policy.yaml")] });
     await expect(saveSettings(root, { ...loaded, policies: ["/outside/policy.yaml"] })).rejects.toThrow("inside the git root");
   });
+  it("accepts nonempty legacy policies as automation-ready and still rejects mixed configuration", () => {
+    const settings: RunnerSettings = { mode: "local", policies: ["/repo/policy.yaml"], pollIntervalSeconds: 60, standbyMinutes: 15, startOnLoad: false, automationEnabled: false, sourcePath: "settings.json", sizes: [] };
+    expect(automationErrors(settings)).toEqual([]);
+    expect(automationErrors({ ...settings, sizes: [{ name: "small", labels: ["workload"], quantity: 1, serverType: "cpx11", location: "fsn1", image: "ubuntu-24.04", firewallId: "1", runnerVersion: "2.321.0", runnerArchiveSha256: "a".repeat(64), maxHourlyCostEur: 1, maxEligibilityCostEur: 1 }] })).toContain("configure either legacy policies or generated runner sizes, not both");
+  });
   it("accepts disabled draft sizes without treating them as automation-ready", async () => {
     const draft: RunnerSettings = { mode: "local", policies: [], pollIntervalSeconds: 60, standbyMinutes: 15, startOnLoad: false, automationEnabled: false, sourcePath: "settings.json", sizes: [{ name: "draft", labels: ["workload"], quantity: 0, serverType: "", location: "", image: "", firewallId: "", runnerVersion: "", runnerArchiveSha256: "", maxHourlyCostEur: 0, maxEligibilityCostEur: 0 }] };
     const root = await mkdtemp(join(tmpdir(), "runner-settings-"));
