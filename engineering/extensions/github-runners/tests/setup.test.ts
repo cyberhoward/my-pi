@@ -421,6 +421,70 @@ describe("setupRunners bounded wizard", () => {
     expect(ctx.ui.confirm).toHaveBeenCalledWith("Overwrite existing global runner configuration?", expect.stringContaining(`local selector ${join(paths.root, ".pi/github-runners.json")}`));
   });
 
+  it("fresh reset starts from disabled local defaults and leaves original bytes unchanged after editing then cancelling", async () => {
+    const paths = await root();
+    await writeGenerated(paths);
+    const target = join(paths.root, ".pi/github-runners.json");
+    const before = await readFile(target);
+    const cancelled = scripted(["Repository pool for acme/widgets", "Edit idle expiry", "Cancel setup"], ["16"], true);
+    await expect(setupRunners(cancelled, { root: paths.root, repository: "acme/widgets" }, services(), { home: paths.home, fresh: true })).resolves.toBe(false);
+    expect(cancelled.ui.confirm).toHaveBeenCalledWith("Start fresh runner setup?", expect.any(String));
+    await expect(readFile(target)).resolves.toEqual(before);
+    const saved = scripted(["Repository pool for acme/widgets", "Continue to pools", "Continue to review", "Save disabled configuration"], [], true);
+    await expect(setupRunners(saved, { root: paths.root, repository: "acme/widgets" }, services(), { home: paths.home, fresh: true })).resolves.toBe(true);
+    expect(saved.ui.confirm.mock.calls.map(([title]) => title)).toContain("Generated pool identity changed");
+    await expect(loadSettings(paths.root, { home: paths.home })).resolves.toMatchObject({ mode: "local", policies: [], sizes: [], pollIntervalSeconds: 60, standbyMinutes: 15, automationEnabled: false, startOnLoad: false });
+  });
+
+  it("fresh reset bypasses legacy retention and reaches the full pool guide", async () => {
+    const paths = await root();
+    await mkdir(join(paths.root, ".pi"), { recursive: true });
+    await writeFile(join(paths.root, ".pi/github-runners.json"), JSON.stringify({ policies: ["legacy.yaml"] }));
+    const ctx = scripted(["Repository pool for acme/widgets", "Continue to pools", "Cancel setup"], [], true);
+    await expect(setupRunners(ctx, { root: paths.root, repository: "acme/widgets" }, services(), { home: paths.home, fresh: true })).resolves.toBe(false);
+    expect(ctx.ui.select.mock.calls.map(([title]) => title)).not.toContain("Existing legacy runner policies");
+    expect(ctx.ui.select.mock.calls.map(([title]) => title)).toContain("4 of 5 — Named runner pools");
+  });
+
+  it("fresh reset retains installed global controller metadata and organization without local activation or remote deployment", async () => {
+    const paths = await root();
+    await mkdir(join(paths.root, ".pi"), { recursive: true });
+    await mkdir(join(paths.home, ".pi/agent"), { recursive: true });
+    await writeFile(join(paths.root, ".pi/github-runners.json"), JSON.stringify({ mode: "global" }));
+    await writeFile(join(paths.home, ".pi/agent/github-runners.json"), JSON.stringify({
+      mode: "global",
+      organization: { name: "acme", repositories: ["acme/widgets"], runnerGroupId: 1, runnerGroupName: "runners" },
+      reaper: { sshTarget: "runner-host", installationId: "a".repeat(16), environmentFile: "/srv/runners.env" },
+      sizes: [{ name: "small", labels: ["ci"], quantity: 1, serverType: "cpx21", location: "fsn1", image: "ubuntu-24.04", firewallId: "1", runnerVersion: "2.321.0", runnerArchiveSha256: "a".repeat(64), maxHourlyCostEur: 1, maxEligibilityCostEur: 2 }],
+    }));
+    const fixture = services();
+    const ctx = scripted(["Continue to pools", "Continue to review", "Save disabled configuration"], [], [true, true, true]);
+    await expect(setupRunners(ctx, { root: paths.root, repository: "acme/widgets" }, fixture, { home: paths.home, fresh: true })).resolves.toBe(true);
+    await expect(loadSettings(paths.root, { home: paths.home })).resolves.toMatchObject({
+      mode: "global",
+      organization: { name: "acme", repositories: ["acme/widgets"], runnerGroupId: 1, runnerGroupName: "runners" },
+      reaper: { sshTarget: "runner-host", installationId: "a".repeat(16), environmentFile: "/srv/runners.env" },
+      policies: [], sizes: [], automationEnabled: false,
+    });
+    expect(ctx.ui.select.mock.calls.map(([title]) => title)).not.toContain("1 of 5 — Runner scope");
+    expect(ctx.ui.select.mock.calls.find(([title]) => title === "5 of 5 — Review runner setup")?.[1]).not.toContain("Save and enable local automation");
+    expect(ctx.ui.confirm).toHaveBeenCalledWith("Overwrite existing global runner configuration?", expect.any(String));
+    expect(fixture.validate).not.toHaveBeenCalled();
+  });
+
+  it("fresh reset defaults to local scope and leaves the prior global snapshot unchanged", async () => {
+    const paths = await root();
+    await mkdir(join(paths.root, ".pi"), { recursive: true });
+    await mkdir(join(paths.home, ".pi/agent"), { recursive: true });
+    await writeFile(join(paths.root, ".pi/github-runners.json"), JSON.stringify({ mode: "global" }));
+    const global = join(paths.home, ".pi/agent/github-runners.json");
+    await writeFile(global, JSON.stringify({ mode: "global", organization: { name: "acme", repositories: ["acme/widgets"], runnerGroupId: 1, runnerGroupName: "runners" }, sizes: [{ name: "small", labels: ["ci"], quantity: 1, serverType: "cpx21", location: "fsn1", image: "ubuntu-24.04", firewallId: "1", runnerVersion: "2.321.0", runnerArchiveSha256: "a".repeat(64), maxHourlyCostEur: 1, maxEligibilityCostEur: 2 }] }));
+    const before = await readFile(global);
+    await expect(setupRunners(scripted(["Repository pool for acme/widgets", "Continue to pools", "Continue to review", "Save disabled configuration"], [], true), { root: paths.root, repository: "acme/widgets" }, services(), { home: paths.home, fresh: true })).resolves.toBe(true);
+    await expect(readFile(global)).resolves.toEqual(before);
+    await expect(loadSettings(paths.root, { home: paths.home })).resolves.toMatchObject({ mode: "local", policies: [], sizes: [] });
+  });
+
   it("retains legacy YAML and rejects non-TUI sessions", async () => {
     const paths = await root();
     await mkdir(join(paths.root, ".pi"), { recursive: true });

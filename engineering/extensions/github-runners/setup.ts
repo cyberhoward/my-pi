@@ -452,7 +452,7 @@ async function enable(ctx: SetupContext, binding: RepositoryBinding, settings: R
   return "enabled";
 }
 
-export async function setupRunners(ctx: SetupContext, binding: RepositoryBinding, services: SetupServices, options: { home?: string } = {}): Promise<boolean> {
+export async function setupRunners(ctx: SetupContext, binding: RepositoryBinding, services: SetupServices, options: { home?: string; fresh?: boolean } = {}): Promise<boolean> {
   if (ctx.mode !== "tui" || !ctx.hasUI) {
     notify(ctx, "Runner setup requires an interactive TUI session; activation is never available non-interactively.", "warning");
     return false;
@@ -466,8 +466,23 @@ export async function setupRunners(ctx: SetupContext, binding: RepositoryBinding
     notify(ctx, error instanceof Error ? error.message : "Could not load runner settings", "error");
     return false;
   }
-  const settings = clone(original);
-  let legacy = Boolean(original.policies.length);
+  if (options.fresh && !await ctx.ui.confirm("Start fresh runner setup?", "This resets only a draft until Save. Runner VMs are not deleted, legacy YAML is not changed or deleted, and fresh generated pools do not adopt old VMs. Existing automation/controllers continue until you save; old VMs can remain billable or need an ownership change. An installed remote controller snapshot remains unchanged and may keep running; uninstall it separately to change scope.")) return false;
+  const remote = original.reaper;
+  const settings = options.fresh
+    ? {
+      mode: remote ? original.mode : "local" as const,
+      policies: [],
+      pollIntervalSeconds: 60,
+      standbyMinutes: 15,
+      startOnLoad: false,
+      automationEnabled: false,
+      organization: remote && original.organization ? clone(original.organization) : undefined,
+      reaper: remote ? clone(remote) : undefined,
+      sizes: [],
+      sourcePath: remote ? original.sourcePath : resolve(binding.root, ".pi/github-runners.json"),
+    }
+    : clone(original);
+  let legacy = !options.fresh && Boolean(original.policies.length);
   if (legacy) {
     const choice = await ctx.ui.select("Existing legacy runner policies", ["Keep existing legacy policies unchanged", "Replace with generated runner pools", "Cancel setup"]);
     if (!choice || choice === "Cancel setup") return false;
@@ -479,7 +494,9 @@ export async function setupRunners(ctx: SetupContext, binding: RepositoryBinding
   }
   settings.automationEnabled = false;
   settings.startOnLoad = false;
-  notify(ctx, "Guided setup saves disabled configuration by default; enabling local automation is a separate paid action. Discovery never creates cloud resources, changes workflow files, installs SSH services, or modifies a remote controller. Existing automation and remote snapshots keep running while setup is open. Routing labels are AND requirements.");
+  notify(ctx, options.fresh
+    ? "Fresh setup is a draft until Save and starts disabled. It does not delete VMs, alter legacy YAML, or change an installed remote controller snapshot; existing VMs/controllers can remain billable. Discovery never creates cloud resources, changes workflow files, or installs SSH services."
+    : "Guided setup saves disabled configuration by default; enabling local automation is a separate paid action. Discovery never creates cloud resources, changes workflow files, installs SSH services, or modifies a remote controller. Existing automation and remote snapshots keep running while setup is open. Routing labels are AND requirements.");
   let stage: Stage = legacy ? "runtime" : settings.reaper ? "discovery" : "scope";
   let discovery: Discovery = { credentials: false };
   for (;;) {
