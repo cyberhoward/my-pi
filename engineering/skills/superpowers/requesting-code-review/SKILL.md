@@ -3,9 +3,11 @@ name: requesting-code-review
 description: Use independent review for meaningful completed units, substantial changes, or risk that benefits from a fresh technical assessment
 ---
 
+Agent frontmatter defines the model and effort for each role.
+
 # Requesting Code Review
 
-Request review in proportion to risk. An independent Astra `reviewer` should review meaningful completed work and substantial integrated changes. A typo or tightly bounded, well-understood change can use direct inspection and focused verification instead. Review early when it can prevent costly rework, not as an unconditional checkpoint after every task.
+Request review in proportion to risk. An independent `reviewer` should review meaningful completed work and substantial integrated changes. A typo or tightly bounded, well-understood change can use direct inspection and focused verification instead. Review early when it can prevent costly rework, not as an unconditional checkpoint after every task.
 
 The reviewer is read-only. A coordinator or worker runs checks and applies fixes. A review assessment of “ready” describes the inspected state only; it does not authorize merge, deployment, push, or any other delivery action.
 

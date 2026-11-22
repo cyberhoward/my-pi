@@ -1,6 +1,8 @@
 # Requirements Reviewer Prompt Template
 
-Dispatch an Astra `reviewer` for independent, read-only review when the completed unit is meaningful or risk warrants it. This review covers requirement compliance and may also flag architecture, security, quality, or test issues. Do not require a separate quality review unless risk justifies one.
+Agent frontmatter defines the model and effort for each role.
+
+Dispatch a `reviewer` for independent, read-only review when the completed unit is meaningful or risk warrants it. This review covers requirement compliance and may also flag architecture, security, quality, or test issues. Do not require a separate quality review unless risk justifies one.
 
 ```text
 subagent({

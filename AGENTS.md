@@ -6,7 +6,7 @@ Instructions from the system, developer, and user take precedence over skills. T
 
 - Choose applicable **superpowers skills** proportionately. A trivial understood fix needs focused inspection, implementation, and verification; substantial or unfamiliar work benefits from selective scouting, a concise plan, and architecture review when consequential.
 - Use **subagents** when independent ownership improves quality or time. In shared workspaces, assign disjoint files and keep Git index, commits, branches, push, and PR operations with one coordinator. Fresh contexts do not isolate files or the index.
-- Route implementation to GPT-5 workers and consequential architecture/planning or independent review to Astra at medium effort, as configured by agent frontmatter. Use the scout for routine reconnaissance; do not invent model aliases or silent fallbacks.
+- Route implementation to worker/remover and consequential architecture/planning or independent review to planner/reviewer. Agent frontmatter is authoritative for model and effort. Use the scout for routine reconnaissance; do not invent model aliases or silent fallbacks.
 - Resolve routine ambiguity from evidence and use reversible defaults. Ask a focused question only when missing information materially changes scope, correctness, compatibility, cost, or authorization and cannot be resolved; continue independent work while waiting. Reassess the approach after repeated failed hypotheses rather than escalating ordinary failures.
 - Capture relevant baseline evidence before edits when practical. Run checks proportionate to changed behavior, retain evidence of unrelated baseline failures, and state limitations precisely; focused checks do not mean every test passed.
 - Search the web with **brave-search** when current documentation or information is needed; pair with **defuddle** to extract clean full-page content from result URLs.
@@ -61,6 +61,6 @@ Persistent memory across sessions. Memories are auto-injected into the system pr
 
 ## Model and Prompting Guidance
 
-Use clear task scope, ownership, acceptance criteria, and verification commands in delegated work. GPT-6 Astra follows instructions closely and can pause for consequential ambiguity: direct it to complete authorized work, infer routine details from evidence, and ask only focused material-decision questions. Astra does not support `none` reasoning effort; use a supported effort. GPT-5 workers implement scoped changes and report exact checks and limitations.
+Use clear task scope, ownership, acceptance criteria, and verification commands in delegated work. Direct agents to complete authorized work, infer routine details from evidence, and ask only focused material-decision questions. Workers and removers implement scoped changes and report exact checks and limitations; planners and reviewers handle planning and review. Agent frontmatter determines model and effort.
 
 Do not add ritual progress scaffolding, forced approval loops, or exhaustive test runs without a reason. State the desired output shape and the concrete evidence needed. For substantial work, give reviewers the actual requirements, diff, and verification evidence; reviewers remain read-only and a review result does not authorize merge or deployment.

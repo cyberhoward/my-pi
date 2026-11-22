@@ -62,7 +62,7 @@ Tools for coding workflows. Only load these in engineering projects.
 | Component | Type | Description |
 |-----------|------|-------------|
 | **code-ast/** | Extension | TypeScript-aware code intelligence. Tools: `ast_references`, `ast_rename`, `ast_symbols` |
-| **agents/** | Agents | Subagent definitions: `scout` (GPT-5.6 Luna), `planner` and `reviewer` (GPT-6 Astra), `worker` and `remover` (GPT-5.6 Terra), and `tooling-researcher` (GPT-5.6 Sol). |
+| **agents/** | Agents | Subagent definitions: `scout` for reconnaissance, `planner` and `reviewer` for planning and review, `worker` and `remover` for implementation, and `tooling-researcher` for research. Agent frontmatter defines model and effort pins. |
 | **superpowers/** | Skills | Brainstorming, TDD, systematic debugging, code review, git worktrees, planning, and more — from [superpowers](https://github.com/obra/superpowers) |
 
 ### `personal/` — Non-engineering workflows
