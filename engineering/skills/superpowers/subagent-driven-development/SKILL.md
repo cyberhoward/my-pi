@@ -3,9 +3,11 @@ name: subagent-driven-development
 description: Use when delegated implementation and independent review improve a planned or substantial change
 ---
 
+Agent frontmatter defines the model and effort for each role.
+
 # Subagent-Driven Development
 
-Use subagents deliberately: a GPT-5 `worker` implements bounded work, and an Astra `reviewer` independently reviews meaningful completed units or a substantial integrated change. A trivial, understood fix may be implemented directly by a GPT-5 controller with focused verification.
+Use subagents deliberately: a `worker` implements bounded work, and a `reviewer` independently reviews meaningful completed units or a substantial integrated change. A trivial, understood fix may be implemented directly with focused verification.
 
 Fresh context windows do **not** isolate the filesystem or Git index. In a shared worktree, assign disjoint files and make one coordinator responsible for the index, commits, branch operations, push, and PR actions. Serialize work that needs the same file. Use separate worktrees only when their setup and later integration are worthwhile.
 
@@ -14,7 +16,7 @@ Fresh context windows do **not** isolate the filesystem or Git index. In a share
 1. Read the request, relevant plan or requirements, repository guidance, current status, and baseline evidence.
 2. For unfamiliar or consequential architecture, delegate reconnaissance to `scout` and planning to `planner`; include the original requirements in every handoff. The planner and scout are read-only.
 3. Split only independent work. Give each worker exact allowed files, dependencies, working directory, acceptance criteria, relevant baseline failures, verification commands, and delivery permissions.
-4. Dispatch independent workers concurrently with `subagent`; schedule dependent or overlapping work after its prerequisite or reassign the shared file. Once an independent unit is ready, dispatch its Astra review while other independent implementation continues.
+4. Dispatch independent workers concurrently with `subagent`; schedule dependent or overlapping work after its prerequisite or reassign the shared file. Once an independent unit is ready, dispatch its independent review while other independent implementation continues.
 5. Track every pending review explicitly. Inspect reports and actual diffs, run integration checks, and request one independent, read-only `reviewer` review for each meaningful completed unit or the substantial integrated change.
 6. Evaluate findings against the requirements and code. If a reviewer reports a relevant serious issue, pause launching dependent work, let unrelated active work reach a safe checkpoint, fix the issue, and rerun affected checks before unblocking its dependents. Record justified non-blocking findings. Ask a focused question only when a material decision remains unresolved; continue independent work.
 

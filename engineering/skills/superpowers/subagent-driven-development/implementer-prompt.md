@@ -1,6 +1,6 @@
 # Implementer Subagent Prompt Template
 
-Dispatch a GPT-5 `worker` with the actual `subagent` tool. Agent definitions select the model; do not add model arguments.
+Dispatch a `worker` with the actual `subagent` tool. Agent frontmatter selects the model and reasoning effort; do not add model arguments.
 
 ```text
 subagent({

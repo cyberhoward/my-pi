@@ -1,6 +1,8 @@
 # Focused Quality Reviewer Prompt Template
 
-Use this additional Astra `reviewer` pass only when a separate specialized review is warranted by risk (for example security-sensitive, migration, concurrency, or high-impact compatibility work). For ordinary meaningful work, use `spec-reviewer-prompt.md`'s combined independent review.
+Agent frontmatter defines the model and effort for each role.
+
+Use this additional `reviewer` pass only when a separate specialized review is warranted by risk (for example security-sensitive, migration, concurrency, or high-impact compatibility work). For ordinary meaningful work, use `spec-reviewer-prompt.md`'s combined independent review.
 
 ```text
 subagent({
