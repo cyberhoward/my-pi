@@ -15,6 +15,7 @@ import { planFingerprint, runCli } from "./src/cli.js";
 import { applyBulkPlans, bulkPreviewText, bulkScope, decodeRemoteBulk, prepareBulkPlans, type BulkResult } from "./bulk.js";
 import { installReaper, reaperInstallationId, reaperStatus, requestReaper, uninstallReaper, type ReaperRequest } from "./remote-reaper.js";
 import { selectSshTarget } from "./ssh-hosts.js";
+import { RunnerMenuScreen, runnerMenuFallbackOptions, runnerMenuValue } from "./runners-menu.js";
 
 const usage = "Usage: /runners [setup|reset|settings|status|refresh|ensure|reconcile|drain|destroy|reaper install|reaper status|reaper uninstall] [--policy <path-or-selected-policy>] [--capacity N] [--instance UUID|--all] [--apply]";
 const completions = [
@@ -68,7 +69,22 @@ export function parseRunnerCommand(input: string): Parsed {
 function output(ctx: ExtensionCommandContext, text: string, type: "info" | "warning" | "error" = "info"): void { if (ctx.hasUI) ctx.ui.notify(text, type); else console.log(text); }
 function parseOutput(text: string): CoreOutput | undefined { for (const line of text.split(/\r?\n/)) { try { return JSON.parse(line) as CoreOutput; } catch {} } return undefined; }
 function planFingerprintFrom(text: string): string | undefined { const plan = parseOutput(text)?.plan; return plan && !plan.warnings?.length && Array.isArray(plan.operations) ? planFingerprint(plan as Parameters<typeof planFingerprint>[0]) : undefined; }
-async function choose(ctx: ExtensionCommandContext): Promise<string | undefined> { return ctx.hasUI ? ctx.ui.select("GitHub runners", ["setup", "reset", "settings", "status", "refresh", "ensure", "reconcile", "drain", "destroy", "destroy --all", "reaper install", "reaper status", "reaper uninstall"]) : undefined; }
+async function choose(ctx: ExtensionCommandContext): Promise<string | undefined> {
+  if (!ctx.hasUI) return undefined;
+  if (ctx.mode === "tui" && ctx.ui.custom) {
+    return ctx.ui.custom<string | undefined>((tui, theme, _keybindings, done) => {
+      const screen = new RunnerMenuScreen(value => done(value), () => done(undefined), theme);
+      return {
+        get focused() { return screen.focused; },
+        set focused(value: boolean) { screen.focused = value; },
+        render: width => screen.render(width),
+        invalidate: () => screen.invalidate(),
+        handleInput: data => { screen.handleInput(data); tui.requestRender(); },
+      };
+    });
+  }
+  return runnerMenuValue(await ctx.ui.select("GitHub runners — choose an action", runnerMenuFallbackOptions()));
+}
 async function ghToken(cwd: string): Promise<string | undefined> { try { return (await nodeCommandRunner("gh", ["auth", "token", "--hostname", "github.com"], { cwd, timeoutMs: 5_000, maxBuffer: 16 * 1024 })).stdout.trim() || undefined; } catch { return undefined; } }
 export async function snapshotPolicy(path: string): Promise<{ path: string; cleanup: () => Promise<void> }> { const bytes = await readFile(path); if (bytes.byteLength > 256 * 1024) throw new Error("policy exceeds 256 KiB limit"); const directory = await mkdtemp(join(tmpdir(), "pi-runner-policy-")); const snapshot = join(directory, "policy.yaml"); await writeFile(snapshot, bytes, { mode: 0o600 }); return { path: snapshot, cleanup: () => rm(directory, { recursive: true, force: true }) }; }
 export function assertPolicyRepository(repository: string, policyRepository: string): void { if (!sameRepository(policyRepository, repository)) throw new Error("policy repository does not match the active GitHub origin"); }
@@ -247,7 +263,14 @@ export default function (pi: ExtensionAPI): void {
     return matches.length ? matches : null;
   }, handler: async (input, ctx) => {
     try {
-      const value = input.trim() ? input.trim() : await choose(ctx); if (!value) { output(ctx, usage); return; }
+      const chosenFromMenu = !input.trim();
+      let value = input.trim() ? input.trim() : await choose(ctx); if (!value) { output(ctx, usage); return; }
+      if (chosenFromMenu && (value === "drain" || value === "destroy")) {
+        const instance = await ctx.ui.input(`Instance UUID to ${value}`);
+        if (instance === undefined) return;
+        if (!instance.trim() || /\s/.test(instance)) throw new Error("instance UUID is required");
+        value = `${value} --instance ${instance.trim()}`;
+      }
       if (value === "setup" || value === "reset" || value === "settings") {
         const binding = await detectRepository(ctx.cwd);
         if (!binding) throw new Error("active directory must have one exact github.com origin");

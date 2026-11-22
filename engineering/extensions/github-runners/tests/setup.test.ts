@@ -28,6 +28,8 @@ const catalog = {
   locations: [{ name: "fsn1", description: "Falkenstein" }],
   serverTypes: [
     { name: "cpx21", cores: 3, memoryGb: 4, diskGb: 80, locations: ["fsn1"] },
+    { name: "cpx31", cores: 4, memoryGb: 8, diskGb: 160, locations: ["fsn1"] },
+    { name: "cpx41", cores: 8, memoryGb: 16, diskGb: 240, locations: ["fsn1"] },
     { name: "cx22", cores: 2, memoryGb: 4, diskGb: 40, locations: ["fsn1"] },
   ],
   images: [{ name: "ubuntu-24.04", description: "Ubuntu" }],
@@ -57,9 +59,10 @@ async function root(): Promise<{ root: string; home: string }> {
   return { root: join(directory, "repository"), home: join(directory, "home") };
 }
 
-function scripted(selected: string[], inputs: Array<string | undefined> = [], confirms: boolean | boolean[] = true) {
+function scripted(selected: string[], inputs: Array<string | undefined> = [], confirms: boolean | boolean[] = true, poolChoice = "Custom") {
   const answers = Array.isArray(confirms) ? [...confirms] : undefined;
-  const select = vi.fn(async (_title: string, options: string[]) => {
+  const select = vi.fn(async (title: string, options: string[]) => {
+    if (title === "Choose a named pool") return options.find(option => option.startsWith(`${poolChoice} —`));
     const choice = selected.shift();
     if (choice !== undefined && !options.includes(choice)) throw new Error(`impossible UI action ${choice}; options: ${options.join(" | ")}`);
     return choice;
@@ -115,6 +118,7 @@ describe("setupRunners bounded wizard", () => {
     const ctx = scripted(["Repository pool for acme/widgets", "Edit polling interval", "Edit polling interval", "Continue to pools", "Add named pool", "Edit quantity", "0", "Done", "Continue to review", "Save disabled configuration"], ["4", "5"]);
     await expect(setupRunners(ctx, { root: paths.root, repository: "acme/widgets" }, services(), { home: paths.home })).resolves.toBe(true);
     await expect(loadSettings(paths.root, { home: paths.home })).resolves.toMatchObject({ pollIntervalSeconds: 5, sizes: [{ quantity: 0 }] });
+    expect(ctx.ui.select).toHaveBeenCalledWith("Choose a named pool", expect.arrayContaining(["Custom — choose every pool field yourself"]));
     expect(ctx.ui.notify).toHaveBeenCalledWith("Polling interval must be an integer from 5 to 3600.", "error");
   });
 
@@ -122,6 +126,39 @@ describe("setupRunners bounded wizard", () => {
     const paths = await root();
     await expect(setupRunners(scripted(poolChoices(), poolInputs()), { root: paths.root, repository: "acme/widgets" }, services(), { home: paths.home })).resolves.toBe(true);
     await expect(loadSettings(paths.root, { home: paths.home })).resolves.toMatchObject({ automationEnabled: false, startOnLoad: false, sizes: [{ name: "small", quantity: 1, maxHourlyCostEur: 0.0101 }] });
+  });
+
+  it.each([
+    ["Small", "small", "cpx21"],
+    ["Medium", "medium", "cpx31"],
+    ["Large", "large", "cpx41"],
+  ])("saves the %s preset as a disabled draft", async (choice, name, serverType) => {
+    const paths = await root();
+    const ctx = scripted(["Repository pool for acme/widgets", "Continue to pools", "Add named pool", "Done", "Continue to review", "Save disabled configuration"], [], true, choice);
+    await expect(setupRunners(ctx, { root: paths.root, repository: "acme/widgets" }, services(), { home: paths.home })).resolves.toBe(true);
+    await expect(loadSettings(paths.root, { home: paths.home })).resolves.toMatchObject({ sizes: [{ name, serverType, quantity: 0 }] });
+  });
+
+  it("refuses an unavailable preset and preserves existing pools when its draft is cancelled", async () => {
+    const paths = await root();
+    await writeGenerated(paths);
+    const before = await readFile(join(paths.root, ".pi/github-runners.json"));
+    const unavailableCatalog = { ...catalog, serverTypes: catalog.serverTypes.filter(type => type.name !== "cpx31") };
+    const refused = scripted(["Repository pool for acme/widgets", "Continue to pools", "Add named pool", "Cancel setup"], [], true, "Medium");
+    await expect(setupRunners(refused, { root: paths.root, repository: "acme/widgets" }, services({ catalog: async () => unavailableCatalog }), { home: paths.home })).resolves.toBe(false);
+    expect(refused.ui.notify).toHaveBeenCalledWith(expect.stringContaining("Medium uses cpx31, which is unavailable"), "warning");
+    expect(await readFile(join(paths.root, ".pi/github-runners.json"))).toEqual(before);
+
+    const cancelled = scripted(["Repository pool for acme/widgets", "Continue to pools", "Add named pool", "Done", "Cancel setup"], [], true, "Large");
+    await expect(setupRunners(cancelled, { root: paths.root, repository: "acme/widgets" }, services(), { home: paths.home })).resolves.toBe(false);
+    expect(await readFile(join(paths.root, ".pi/github-runners.json"))).toEqual(before);
+  });
+
+  it("puts a preset pool's current server type first when editing infrastructure", async () => {
+    const paths = await root();
+    const ctx = scripted(["Repository pool for acme/widgets", "Continue to pools", "Add named pool", "Edit infrastructure", "cpx31 — 4 vCPU, 8 GB RAM, 160 GB disk", "fsn1", "ubuntu-24.04 — Ubuntu", "1 — runners", "Done", "Continue to review", "Save disabled configuration"], [], true, "Medium");
+    await expect(setupRunners(ctx, { root: paths.root, repository: "acme/widgets" }, services(), { home: paths.home })).resolves.toBe(true);
+    expect(ctx.ui.select.mock.calls.find(([title]) => title === "Hetzner server type")?.[1][0]).toMatch(/^cpx31/);
   });
 
   it("allows remote pool quantity and infrastructure edits while preserving installation identity and blocking local enable", async () => {

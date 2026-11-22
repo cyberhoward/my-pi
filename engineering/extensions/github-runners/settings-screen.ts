@@ -9,9 +9,9 @@ export type SettingsScreenAction =
 type ScreenTheme = { fg(token: string, text: string): string; bold(text: string): string };
 
 function sizesSummary(settings: RunnerSettings): string {
-  if (settings.sizes.length) return `${settings.sizes.length} mapping${settings.sizes.length === 1 ? "" : "s"}`;
+  if (settings.sizes.length) return settings.sizes.map(size => `${size.name || "unnamed"}: ${size.quantity} × ${size.serverType || "unresolved"}`).join("; ");
   if (settings.policies.length) return `${settings.policies.length} legacy polic${settings.policies.length === 1 ? "y" : "ies"}`;
-  return "no mappings";
+  return "no pools";
 }
 
 function organization(settings: RunnerSettings): string {
@@ -45,14 +45,14 @@ export class RunnerSettingsScreen extends Container {
       item("organization", "Organization", organization(settings), "Organization name used by the global pool."),
       item("repositories", "Allowed repositories", repositories(settings), "Comma-separated organization allowlist; required for global automation."),
       item("runner-group", "Runner group", group(settings), "GitHub runner group name and numeric ID for global automation."),
-      item("sizes", "Runner sizes", sizesSummary(settings), "Edit JSON mappings. Zero-quantity mappings remain valid drafts; legacy policies are shown when no mappings exist."),
+      item("sizes", "Runner pool sizes", sizesSummary(settings), "Start with the guided Small/Medium/Large/Custom workflow. Advanced JSON remains available explicitly; zero-quantity pools are safe drafts."),
       item("standby", "Standby expiry", `${settings.standbyMinutes} minutes`, "Idle standby runners expire after this many minutes."),
       { id: "start-on-load", label: "Start on load", currentValue: settings.startOnLoad ? "prewarm once" : "off", description: "Requires automation. Prewarms once when Pi loads, then runners expire normally and may incur cloud costs.", values: ["off", "prewarm once"] },
       item("automation", "Automation", settings.automationEnabled ? "enabled" : "disabled", "Enabling validates live configuration and requires a cost and sole-writer confirmation."),
       item("remote", "Remote reaper", settings.reaper ? `installed on ${settings.reaper.sshTarget}` : "not installed", "Saving does not update the remote snapshot; its installed controller keeps its current configuration until you reinstall for this host and scope."),
       item("save", "Save changes", "save", "Persist this draft. Enabled local automation can immediately create billable capacity or reconcile; the remote snapshot is not redeployed."),
       item("discard", "Discard changes", "discard", "Discard this draft without writing settings."),
-      item("guided-setup", "Guided setup", "open", "Configure runner scope, named pools, quantities, infrastructure choices, pins, expiry, and cost caps in a separate wizard."),
+      item("guided-setup", "Guided setup", "open", "Recommended for scope and pool changes. Choose presets or Custom, then review infrastructure, pins, and cost safeguards."),
     ];
     this.title = new Text("", 0, 0);
     refreshTitle();
@@ -74,6 +74,7 @@ export class RunnerSettingsScreen extends Container {
       onAction({ id: id as SettingsScreenAction["id"] });
     }, () => onAction({ id: "discard" }), { enableSearch: true });
     this.addChild(this.settingsList);
+    this.addChild(new Text(theme.fg("dim", "↑↓ navigate • Enter edit/select • type to search • Esc discard"), 0, 0));
     this.addChild(new DynamicBorder((text: string) => theme.fg("border", text)));
   }
 

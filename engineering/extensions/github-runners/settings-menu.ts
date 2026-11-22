@@ -14,9 +14,9 @@ type ConfigureResult = boolean | "guided-setup";
 export interface ConfigureRunnersOptions { onGuidedSetup?: () => Promise<boolean>; }
 
 const sizeTemplate = [{
-  name: "small-linux", labels: ["pi-runner-small"], quantity: 0,
-  serverType: "cpx21", location: "fsn1", image: "ubuntu-24.04", firewallId: "",
-  runnerVersion: "2.x", runnerArchiveSha256: "REPLACE_WITH_PINNED_SHA256",
+  name: "small", labels: ["pi-runner-small"], quantity: 0,
+  serverType: "cpx21", location: "", image: "ubuntu-24.04", firewallId: "",
+  runnerVersion: "", runnerArchiveSha256: "",
   maxHourlyCostEur: 0, maxEligibilityCostEur: 0,
 }];
 
@@ -45,7 +45,7 @@ async function changeAutomation(ctx: MenuContext, binding: RepositoryBinding, se
   catch (error) { notice(ctx, `Cannot enable automation:\n${error instanceof Error ? error.message : "runner policies could not be validated"}`, "error"); return; }
   if (await ctx.ui.confirm("Enable runner automation?", "This can incur cloud costs. Confirm workflow routing uses each size's custom labels, this session is the single writer, and any remote controller has been stopped.")) settings.automationEnabled = true;
 }
-async function editDraft(ctx: MenuContext, settings: RunnerSettings, id: Extract<SettingsScreenAction["id"], "organization" | "repositories" | "runner-group" | "sizes" | "standby">): Promise<void> {
+async function editDraft(ctx: MenuContext, settings: RunnerSettings, id: Extract<SettingsScreenAction["id"], "organization" | "repositories" | "runner-group" | "sizes" | "standby">): Promise<"guided-setup" | void> {
   if (id === "organization") {
     const value = await ctx.ui.input("GitHub organization name", settings.organization?.name ?? "");
     if (value !== undefined) updateOrganization(settings, { name: value.trim().toLowerCase() });
@@ -59,8 +59,11 @@ async function editDraft(ctx: MenuContext, settings: RunnerSettings, id: Extract
       if (value !== undefined) updateOrganization(settings, { runnerGroupName: name.trim(), runnerGroupId: Number(value) });
     }
   } else if (id === "sizes") {
+    const choice = await ctx.ui.select("Runner pool sizes", ["Guided preset workflow (recommended) — choose Small, Medium, Large, or Custom", "Advanced JSON editor — edit mappings directly", "Cancel"]);
+    if (choice?.startsWith("Guided preset workflow")) return "guided-setup";
+    if (!choice?.startsWith("Advanced JSON editor")) return;
     if (!ctx.ui.editor) { notice(ctx, "This Pi version does not provide the structured editor", "error"); return; }
-    const text = await ctx.ui.editor("Runner size mappings (JSON; custom routing labels required)", JSON.stringify(settings.sizes.length ? settings.sizes : sizeTemplate, null, 2));
+    const text = await ctx.ui.editor("Advanced runner size mappings (JSON; custom routing labels required)", JSON.stringify(settings.sizes.length ? settings.sizes : sizeTemplate, null, 2));
     if (text !== undefined) {
       try { settings.sizes = parseRunnerSizes(JSON.parse(text)); }
       catch (error) { notice(ctx, error instanceof Error ? error.message : "Runner sizes must be valid JSON", "error"); }
@@ -104,7 +107,11 @@ async function configureNative(ctx: MenuContext, binding: RepositoryBinding, set
     } else if (action.id === "remote") {
       notice(ctx, settings.reaper ? "The installed controller keeps its authoritative configuration. After local changes, explicitly repeat /runners reaper install for the same host and scope; uninstall first only when switching host or scope. This does not deploy automatically." : "Use /runners reaper install to configure a remote controller.", "warning");
     } else {
-      await editDraft(ctx, settings, action.id);
+      const result = await editDraft(ctx, settings, action.id);
+      if (result === "guided-setup") {
+        if (JSON.stringify(settings) !== original && !await ctx.ui.confirm("Discard unsaved settings?", "Guided setup opens separately. Discard this advanced-settings draft without saving?")) continue;
+        return "guided-setup";
+      }
     }
     selectedId = action.id;
   }
@@ -132,7 +139,13 @@ async function configureFallback(ctx: MenuContext, binding: RepositoryBinding, s
     else if (choice.startsWith("Organization:")) await editDraft(ctx, settings, "organization");
     else if (choice.startsWith("Allowed repositories:")) await editDraft(ctx, settings, "repositories");
     else if (choice.startsWith("Runner group:")) await editDraft(ctx, settings, "runner-group");
-    else if (choice.startsWith("Runner sizes:")) await editDraft(ctx, settings, "sizes");
+    else if (choice.startsWith("Runner sizes:")) {
+      const result = await editDraft(ctx, settings, "sizes");
+      if (result === "guided-setup") {
+        if (JSON.stringify(settings) !== original && !await ctx.ui.confirm("Discard unsaved settings?", "Guided setup opens separately. Discard this advanced-settings draft without saving?")) continue;
+        return "guided-setup";
+      }
+    }
     else if (choice.startsWith("Standby expiry:")) await editDraft(ctx, settings, "standby");
     else if (choice.startsWith("Start on load:")) { const value = await ctx.ui.select("Start on load", ["off", "prewarm once then expire normally"]); if (value) settings.startOnLoad = value !== "off"; }
     else if (choice.startsWith("Automation:")) await changeAutomation(ctx, binding, settings);

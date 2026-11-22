@@ -20,7 +20,12 @@ describe("runner settings screen", () => {
     const actions: string[] = [];
     let accent = "one";
     const liveTheme = { fg: (_token: string, text: string) => `[${accent}]${text}`, bold: (text: string) => text };
+    draft.sizes = [
+      { name: "small", labels: ["ci-small"], quantity: 1, serverType: "cpx21", location: "fsn1", image: "ubuntu-24.04", firewallId: "1", runnerVersion: "2.321.0", runnerArchiveSha256: "a".repeat(64), maxHourlyCostEur: 1, maxEligibilityCostEur: 2 },
+      { name: "medium", labels: ["ci-medium"], quantity: 2, serverType: "cpx31", location: "fsn1", image: "ubuntu-24.04", firewallId: "1", runnerVersion: "2.321.0", runnerArchiveSha256: "a".repeat(64), maxHourlyCostEur: 1, maxEligibilityCostEur: 2 },
+    ];
     const screen = new RunnerSettingsScreen(draft, JSON.stringify(draft), liveTheme, action => actions.push(action.id));
+    expect(screen.render(120).join("\n")).toContain("small: 1 × cpx21; medium: 2 × cpx31");
     for (const width of [1, 8, 24, 80]) expect(screen.render(width).every(line => visibleWidth(line) <= width)).toBe(true);
     screen.handleInput(" ");
     expect(draft.mode).toBe("global");
@@ -92,7 +97,7 @@ describe("runner settings screen", () => {
     const notify = vi.fn();
     let calls = 0;
     const ctx = { hasUI: true, mode: "tui", ui: {
-      select: async () => undefined, input: async () => undefined,
+      select: async (title: string) => title === "Runner pool sizes" ? "Advanced JSON editor — edit mappings directly" : undefined, input: async () => undefined,
       editor: async (_title: string, initial: string) => { editorInitials.push(initial); return editorResponses.shift(); },
       confirm: async () => false, notify,
       custom: async <T>(factory: (tui: { requestRender(): void }, currentTheme: typeof theme, keybindings: unknown, done: (value: T) => void) => { handleInput(data: string): void }): Promise<T> => {

@@ -20,6 +20,7 @@ vi.mock("../monitor.js", () => ({
 vi.mock("../automation.js", () => ({ RunnerAutomation: class { start() {} async stop() {} } }));
 
 import register, { parseRunnerCommand } from "../index.js";
+import { runnerMenuFallbackOptions } from "../runners-menu.js";
 
 type Handler = (input: string, ctx: any) => Promise<void>;
 
@@ -34,11 +35,12 @@ function registered(): { handler: Handler; getArgumentCompletions: (prefix: stri
 
 function command(): Handler { return registered().handler; }
 
-function context() {
+function context(): any {
   return {
     cwd: "/repo", mode: "tui", hasUI: true,
     ui: {
       select: async (_title: string, choices: string[]) => { state.choices = choices; return undefined; },
+      input: async () => undefined,
       notify: () => undefined,
       setStatus: () => undefined,
     },
@@ -56,7 +58,7 @@ beforeEach(() => {
 describe("guided setup command entrypoint", () => {
   it("puts setup first in the no-argument menu without binding", async () => {
     await command()("", context());
-    expect(state.choices[0]).toBe("setup");
+    expect(state.choices[0]).toBe(runnerMenuFallbackOptions()[0]);
     expect(state.detected).toBe(0);
     expect(state.monitors).toBe(0);
   });
@@ -70,7 +72,7 @@ describe("guided setup command entrypoint", () => {
 
   it("puts reset beside setup, passes fresh only to reset, and rebinds only after reset saves", async () => {
     await command()("", context());
-    expect(state.choices.slice(0, 2)).toEqual(["setup", "reset"]);
+    expect(state.choices.slice(0, 2)).toEqual(runnerMenuFallbackOptions().slice(0, 2));
     await command()("reset", context());
     expect(state.detected).toBe(1);
     expect(state.monitors).toBe(0);
@@ -79,6 +81,15 @@ describe("guided setup command entrypoint", () => {
     await command()("reset", context());
     expect(state.detected).toBe(3);
     expect(state.monitors).toBe(1);
+  });
+
+  it("prompts for an instance before routing a bare drain menu action", async () => {
+    const ctx = context();
+    let prompt = "";
+    ctx.ui.select = async (_title: string, choices: string[]) => choices.find(choice => choice.startsWith("Plan drain"));
+    ctx.ui.input = async (title: string) => { prompt = title; return "runner-id"; };
+    await command()("", ctx);
+    expect(prompt).toBe("Instance UUID to drain");
   });
 
   it("advertises every routable command and no unsupported core literal", () => {

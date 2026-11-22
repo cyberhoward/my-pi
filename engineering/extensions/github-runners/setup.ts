@@ -8,6 +8,7 @@ import { loadSettings, saveSettings, type RunnerSettings, type RunnerSize } from
 import type { SetupCatalog, SetupPolicyPreview, SetupQuote, SetupRelease, SetupServices } from "./setup-types.js";
 import { loadPolicy } from "./src/config.js";
 import { configHash } from "./src/identity.js";
+import { RUNNER_PRESETS, presetAvailable, presetCatalogSummary, presetDraft } from "./presets.js";
 
 type SetupContext = {
   hasUI?: boolean;
@@ -221,7 +222,8 @@ async function runtime(ctx: SetupContext, settings: RunnerSettings, legacy: bool
 }
 
 function poolDetails(size: RunnerSize): string {
-  return `${poolLabel(size)}\nInfrastructure: ${size.serverType || "unset"}/${size.location || "unset"}/${size.image || "unset"}; firewall ${size.firewallId || "unset"}\nPin: ${size.runnerVersion || "unset"} ${size.runnerArchiveSha256 || "unset"}\nAccepted caps: €${exact(size.maxHourlyCostEur)}/hour, €${exact(size.maxEligibilityCostEur)}/eligible lifetime. These are per-pool ceilings, not an account-wide spending limit.`;
+  const ready = size.quantity > 0;
+  return `${poolLabel(size)}\nResource summary: ${size.serverType || "choose a Hetzner type"} · ${size.image || "choose an image"} · ${size.location || "choose a location"}; firewall ${size.firewallId || "choose an existing restrictive firewall"}\n${ready ? `Activation details: runner pin ${size.runnerVersion || "required"}; accepted caps €${exact(size.maxHourlyCostEur)}/hour and €${exact(size.maxEligibilityCostEur)}/eligible lifetime.` : "Disabled draft: quantity is 0, so no capacity is created. Choose location, firewall, pin, and caps before enabling quantity."}\nCaps are per-pool ceilings, not an account-wide spending limit.`;
 }
 
 async function editInfrastructure(ctx: SetupContext, size: RunnerSize, discovery: Discovery): Promise<void> {
@@ -236,7 +238,8 @@ async function editInfrastructure(ctx: SetupContext, size: RunnerSize, discovery
     return;
   }
   const types = discovery.catalog.serverTypes.filter((type) => /^(cx|cpx|ccx)\d+$/.test(type.name) && type.locations.length);
-  const picked = await ctx.ui.select("Hetzner server type", types.map((type) => `${type.name} — ${type.cores} vCPU, ${type.memoryGb} GB RAM, ${type.diskGb} GB disk`));
+  const orderedTypes = [...types].sort((left, right) => Number(right.name === size.serverType) - Number(left.name === size.serverType));
+  const picked = await ctx.ui.select("Hetzner server type", orderedTypes.map((type) => `${type.name} — ${type.cores} vCPU, ${type.memoryGb} GB RAM, ${type.diskGb} GB disk`));
   const type = types.find((item) => picked?.startsWith(`${item.name} —`));
   if (!type) return;
   const location = await ctx.ui.select("Hetzner location", type.locations);
@@ -353,7 +356,25 @@ async function pools(ctx: SetupContext, settings: RunnerSettings, discovery: Dis
     }
     const index = action === "Add named pool" ? draft.length : Number(/^Edit (\d+):/.exec(action)?.[1]) - 1;
     if (index < 0 || index > draft.length) continue;
-    if (index === draft.length) draft.push(manualSize());
+    if (index === draft.length) {
+      const choices = [
+        ...RUNNER_PRESETS.map(preset => `${preset.name} — ${presetCatalogSummary(preset, discovery.catalog)}`),
+        "Custom — choose every pool field yourself",
+        "Back",
+      ];
+      const selected = await ctx.ui.select("Choose a named pool", choices);
+      if (!selected || selected === "Back") continue;
+      const preset = RUNNER_PRESETS.find(item => selected.startsWith(`${item.name} —`));
+      if (preset) {
+        if (!presetAvailable(preset, discovery.catalog)) {
+          notify(ctx, `${preset.name} uses ${preset.serverType}, which is unavailable in the discovered catalog. No alternative was selected; choose another preset or Custom.`, "warning");
+          continue;
+        }
+        draft.push(presetDraft(preset));
+      } else {
+        draft.push(manualSize());
+      }
+    }
     const result = await editPool(ctx, draft[index], discovery, services, settings.standbyMinutes);
     if (result === "cancel") return "cancel";
     if (result === "remove") draft.splice(index, 1);
